@@ -9,8 +9,93 @@ import shutil
 import tempfile
 import json
 import time
+import uuid
+import zipfile
+import mimetypes
+from pathlib import Path
+from flask import Flask, render_template, request, send_file, jsonify, Response
+from werkzeug.utils import secure_filename
 
-# ... (imports) ...
+# localized imports
+from converter import convert_chapters, classify_cbz_files
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 0  # Unlimited upload size
+BROWSE_ROOT = "/mangas"
+
+# In-memory session store: session_id -> session data dict
+_sessions = {}
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/browse", methods=["GET"])
+def browse_directory():
+    """List directories and files in BROWSE_ROOT."""
+    req_path = request.args.get("path", BROWSE_ROOT)
+    
+    # Security check: ensure path is within BROWSE_ROOT
+    try:
+        abs_root = os.path.abspath(BROWSE_ROOT)
+        abs_req = os.path.abspath(req_path)
+        if not abs_req.startswith(abs_root):
+            return jsonify({"error": "Access denied"}), 403
+        
+        if not os.path.exists(abs_req):
+            return jsonify({"error": "Directory not found"}), 404
+            
+        parent = os.path.dirname(abs_req)
+        if not parent.startswith(abs_root):
+            parent = None
+            
+        items = sorted(os.listdir(abs_req))
+        dirs = []
+        files = []
+        
+        for item in items:
+            full_path = os.path.join(abs_req, item)
+            if os.path.isdir(full_path):
+                dirs.append({"name": item, "path": full_path})
+            else:
+                size = os.path.getsize(full_path)
+                files.append({"name": item, "path": full_path, "size": _format_size(size)})
+                
+        return jsonify({
+            "current_path": abs_req,
+            "parent": parent,
+            "dirs": dirs,
+            "files": files
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/preview/<session_id>/<filename>")
+def preview_image(session_id, filename):
+    """Serve the first image from a CBZ file for preview."""
+    session = _sessions.get(session_id)
+    if not session or filename not in session.get("unrecognized", {}):
+        return "Not found", 404
+    
+    cbz_path = session["unrecognized"][filename]
+    try:
+        with zipfile.ZipFile(cbz_path, 'r') as zf:
+            # Find first image
+            images = [f for f in zf.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
+            if not images:
+                return "No images found", 404
+            images.sort()
+            
+            img_name = images[0]
+            img_data = zf.read(img_name)
+            mime_type, _ = mimetypes.guess_type(img_name)
+            return Response(img_data, mimetype=mime_type or "image/jpeg")
+            
+    except Exception as e:
+        return str(e), 500
 
 
 @app.route("/download/<session_id>", methods=["GET"])
@@ -40,14 +125,6 @@ def _stream_conversion(chapter_map, work_dir, output_base, manga_title, settings
             if isinstance(progress, dict):
                 yield json.dumps({"type": "progress", **progress}) + "\n"
             else:
-                # The generator returns the root path at the end? 
-                # No, generator returns strictly what is yielded. 
-                # The 'return' value of a generator is caught by StopIteration, 
-                # but we can't easily access it in a for-loop.
-                # So we modified convert_chapters to NOT return, but we need the path.
-                # Wait, convert_chapters yields progress, then ends.
-                # It calculates 'root' internally. 
-                # We can reconstruct it:
                 pass
         
         root_out = os.path.join(output_base, manga_title)
@@ -63,8 +140,6 @@ def _stream_conversion(chapter_map, work_dir, output_base, manga_title, settings
             _sessions[session_id] = {}
         _sessions[session_id]["zip_path"] = zip_path
         _sessions[session_id]["manga_title"] = manga_title
-        # Keep work_dir to prevent cleanup if needed? 
-        # Actually _sessions might already have it if this was a continue.
         
         # 3. Done
         yield json.dumps({
@@ -121,12 +196,6 @@ def convert():
         output_base = os.path.join(work_dir, "output")
         os.makedirs(output_base, exist_ok=True)
 
-        # If unrecognized files exist -> Return JSON (Phase 2 trigger)
-        # We can't stream this part easily if we also want to stream the "recognized" part 
-        # unless we do everything in one stream.
-        # BUT the frontend expects "needs_review" JSON to switch UI.
-        # So: if unrecognized, return JSON immediately.
-        
         if unrecognized:
             _sessions[session_id] = {
                 "work_dir": work_dir,
@@ -207,6 +276,12 @@ def _zip_directory(source_dir, zip_path, root_name):
                 arcname = os.path.join(root_name, file_path.relative_to(source))
                 zf.write(file_path, arcname)
 
+def _format_size(size):
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
