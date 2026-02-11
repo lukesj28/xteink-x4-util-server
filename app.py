@@ -12,12 +12,22 @@ import time
 import uuid
 import zipfile
 import mimetypes
+import logging
+import sys
 from pathlib import Path
 from flask import Flask, render_template, request, send_file, jsonify, Response
 from werkzeug.utils import secure_filename
 
 # localized imports
 from converter import convert_chapters, classify_cbz_files
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, 
+    stream=sys.stdout, 
+    format='[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 0  # Unlimited upload size
@@ -29,6 +39,7 @@ _sessions = {}
 
 @app.route("/")
 def index():
+    logger.info("Index page accessed")
     return render_template("index.html")
 
 
@@ -36,15 +47,24 @@ def index():
 def browse_directory():
     """List directories and files in BROWSE_ROOT."""
     req_path = request.args.get("path", BROWSE_ROOT)
+    logger.info(f"Browse request for path: {req_path}")
     
     # Security check: ensure path is within BROWSE_ROOT
     try:
         abs_root = os.path.abspath(BROWSE_ROOT)
         abs_req = os.path.abspath(req_path)
+        
+        logger.debug(f"Resolved browser paths - Root: {abs_root}, Requested: {abs_req}")
+
         if not abs_req.startswith(abs_root):
+            logger.warning(f"Access denied: {abs_req} is outside {abs_root}")
             return jsonify({"error": "Access denied"}), 403
         
         if not os.path.exists(abs_req):
+            logger.error(f"Directory not found: {abs_req}")
+            # Check if root even exists
+            if not os.path.exists(abs_root):
+                 logger.critical(f"Root directory {abs_root} does not exist! Check volume mount.")
             return jsonify({"error": "Directory not found"}), 404
             
         parent = os.path.dirname(abs_req)
@@ -62,7 +82,9 @@ def browse_directory():
             else:
                 size = os.path.getsize(full_path)
                 files.append({"name": item, "path": full_path, "size": _format_size(size)})
-                
+        
+        logger.info(f"Found {len(dirs)} dirs and {len(files)} files in {abs_req}")
+        
         return jsonify({
             "current_path": abs_req,
             "parent": parent,
@@ -70,6 +92,7 @@ def browse_directory():
             "files": files
         })
     except Exception as e:
+        logger.exception("Error in browse_directory")
         return jsonify({"error": str(e)}), 500
 
 
@@ -121,11 +144,8 @@ def _stream_conversion(chapter_map, work_dir, output_base, manga_title, settings
         root_out = None
         
         for progress in converter_gen:
-            # If it's a progress dict
             if isinstance(progress, dict):
                 yield json.dumps({"type": "progress", **progress}) + "\n"
-            else:
-                pass
         
         root_out = os.path.join(output_base, manga_title)
 
