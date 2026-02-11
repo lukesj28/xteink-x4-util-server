@@ -262,7 +262,7 @@ def get_cbz_preview(cbz_path, max_size=(300, 500)):
 # Public API
 # ------------------------------------------------------------------
 
-def convert_chapter(cbz_path, ch_num, root, settings, progress_cb=None, progress_info=None):
+def convert_chapter(cbz_path, ch_num, root, settings):
     """
     Convert a single CBZ file into the structured XTC output for one chapter.
 
@@ -277,66 +277,52 @@ def convert_chapter(cbz_path, ch_num, root, settings, progress_cb=None, progress
     zoom_dir = ch_dir / f"zoom_{ch_label}"
     zoom_dir.mkdir(parents=True, exist_ok=True)
 
-    if progress_cb and progress_info:
-        progress_cb(*progress_info, f"Extracting chapter {ch_num}")
-
     images = _extract_images(cbz_path)
 
     # ---- main: one multi-page XTC ----
-    if progress_cb and progress_info:
-        progress_cb(*progress_info, f"Building main XTC for chapter {ch_num}")
-
     main_pages = [_process_main_page(img, s) for img in images]
     build_xtc(main_pages, str(ch_dir / f"main_{ch_label}.xtc"), force_size)
 
     # ---- zoom: per-page, 3 splits each ----
-    if progress_cb and progress_info:
-        progress_cb(*progress_info, f"Building zoom XTCs for chapter {ch_num}")
-
     for page_idx, img in enumerate(images, start=1):
         splits = _process_zoom_page(img, s)
         fname = f"{ch_label}_{page_idx}.xtc"
         build_xtc(splits, str(zoom_dir / fname), force_size)
 
 
-def convert_chapters(chapter_map, output_dir, manga_title, settings=None, progress_cb=None):
+def convert_chapters(chapter_map, output_dir, manga_title, settings=None):
     """
     Convert a mapping of {chapter_num: cbz_path} into structured XTC output.
-
-    Output layout under output_dir/manga_title/:
-        0001/
-            main_0001.xtc
-            zoom_0001/ ...
-        0005/ ...
-
-    Returns the root output path.
+    Yields progress dictionaries:
+        {
+            "current": int,
+            "total": int,
+            "message": str,
+            "filename": str
+        }
     """
     root = Path(output_dir) / manga_title
     root.mkdir(parents=True, exist_ok=True)
 
     total = len(chapter_map)
     for idx, (ch_num, cbz_path) in enumerate(sorted(chapter_map.items()), start=1):
-        info = (idx, total) if progress_cb else None
-        convert_chapter(cbz_path, ch_num, root, settings, progress_cb, info)
+        fname = os.path.basename(cbz_path)
+        yield {
+            "current": idx,
+            "total": total,
+            "message": f"Processing chapter {ch_num}...",
+            "filename": fname
+        }
 
-        if progress_cb:
-            progress_cb(idx, total, f"Chapter {ch_num} done ({idx}/{total})")
+        convert_chapter(cbz_path, ch_num, root, settings)
+
+    # Yield final completion for the loop
+    yield {
+        "current": total,
+        "total": total,
+        "message": "All chapters processed. Creating zip archive...",
+        "filename": ""
+    }
 
     return str(root)
 
-
-# Legacy wrapper for backwards compatibility
-def convert_folder(cbz_files, output_dir, manga_title, settings=None, progress_cb=None):
-    """
-    Convert a list of CBZ file paths into the structured XTC output.
-    Uses chapter number extraction; falls back to sequential numbering.
-    """
-    recognized, unrecognized = classify_cbz_files(cbz_files)
-
-    # Assign sequential numbers to unrecognized files
-    next_ch = max(recognized.keys(), default=0) + 1000
-    for path in unrecognized:
-        recognized[next_ch] = path
-        next_ch += 1
-
-    return convert_chapters(recognized, output_dir, manga_title, settings, progress_cb)

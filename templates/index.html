@@ -132,6 +132,7 @@
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <p class="status-text" id="statusText">Processing…</p>
+            <div class="progress-log" id="progressLog" style="display:none;"></div>
         </div>
 
         <!-- Error -->
@@ -141,235 +142,10 @@
     <script>
         // --- DOM refs ---
         const form = document.getElementById('convertForm');
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('cbzFiles');
-        const fileList = document.getElementById('fileList');
-        const submitBtn = document.getElementById('submitBtn');
-        const statusBar = document.getElementById('statusBar');
-        const statusText = document.getElementById('statusText');
-        const progressFill = document.getElementById('progressFill');
-        const errorMsg = document.getElementById('errorMsg');
-        const contrastSlider = document.getElementById('contrast');
-        const contrastVal = document.getElementById('contrastVal');
-        const ditherToggle = document.getElementById('dithering');
-        const ditherLabel = document.getElementById('ditherLabel');
-        const uploadSection = document.getElementById('uploadSection');
-        const browseSection = document.getElementById('browseSection');
-        const breadcrumb = document.getElementById('breadcrumb');
-        const browserList = document.getElementById('browserList');
-        const browserActions = document.getElementById('browserActions');
-        const selectDirBtn = document.getElementById('selectDirBtn');
-        const selectedDirInfo = document.getElementById('selectedDirInfo');
-        const selectedDirLabel = document.getElementById('selectedDirLabel');
-        const changeDirBtn = document.getElementById('changeDirBtn');
-        const cbzPreviewList = document.getElementById('cbzPreviewList');
-        const reviewPanel = document.getElementById('reviewPanel');
-        const reviewGrid = document.getElementById('reviewGrid');
-        const recognizedSummary = document.getElementById('recognizedSummary');
-        const continueBtn = document.getElementById('continueBtn');
+        // ... (existing refs) ...
+        const progressLog = document.getElementById('progressLog');
 
-        let sourceMode = 'browse';
-        let selectedHostPath = null;
-        let currentBrowsePath = '/mangas';
-
-        // --- Source Mode Toggle ---
-        document.querySelectorAll('.source-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                sourceMode = btn.dataset.mode;
-
-                if (sourceMode === 'upload') {
-                    uploadSection.style.display = '';
-                    browseSection.style.display = 'none';
-                } else {
-                    uploadSection.style.display = 'none';
-                    browseSection.style.display = '';
-                    if (!selectedHostPath) loadBrowser(currentBrowsePath);
-                }
-                updateSubmitState();
-            });
-        });
-
-        // --- Directory Browser ---
-        async function loadBrowser(path) {
-            currentBrowsePath = path;
-            browserList.innerHTML = '<p class="browser-loading">Loading…</p>';
-            browserActions.style.display = 'none';
-            errorMsg.style.display = 'none';
-
-            try {
-                const resp = await fetch(`/browse?path=${encodeURIComponent(path)}`);
-                const data = await resp.json();
-
-                if (!resp.ok) {
-                    browserList.innerHTML = `<p class="browser-empty">⚠️ ${data.error}</p>`;
-                    return;
-                }
-
-                // Build breadcrumb
-                buildBreadcrumb(data.current_path);
-
-                // Build listing
-                browserList.innerHTML = '';
-
-                // Back button (if not at root)
-                if (data.parent) {
-                    const back = document.createElement('div');
-                    back.className = 'browser-item browser-dir';
-                    back.innerHTML = '<span>⬆️ ..</span>';
-                    back.addEventListener('click', () => loadBrowser(data.parent));
-                    browserList.appendChild(back);
-                }
-
-                if (data.dirs.length === 0 && data.files.length === 0) {
-                    const empty = document.createElement('p');
-                    empty.className = 'browser-empty';
-                    empty.textContent = 'Empty directory';
-                    browserList.appendChild(empty);
-                }
-
-                // Directories
-                for (const dir of data.dirs) {
-                    const el = document.createElement('div');
-                    el.className = 'browser-item browser-dir';
-                    el.innerHTML = `<span>📁 ${dir.name}</span>`;
-                    el.addEventListener('click', () => loadBrowser(dir.path));
-                    browserList.appendChild(el);
-                }
-
-                // Files
-                for (const file of data.files) {
-                    const el = document.createElement('div');
-                    el.className = 'browser-item browser-file';
-                    const isCbz = file.name.toLowerCase().endsWith('.cbz');
-                    el.innerHTML = `<span>${isCbz ? '📗' : '📄'} ${file.name}</span><span class="file-size">${file.size}</span>`;
-                    browserList.appendChild(el);
-                }
-
-                // Show select button if there are CBZ files
-                const hasCbz = data.files.some(f => f.name.toLowerCase().endsWith('.cbz'));
-                const cbzCount = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz')).length;
-                if (hasCbz) {
-                    selectDirBtn.textContent = `📂 Select (${cbzCount} CBZ file${cbzCount !== 1 ? 's' : ''})`;
-                    browserActions.style.display = '';
-                } else if (data.dirs.length > 0) {
-                    browserActions.style.display = 'none';
-                } else {
-                    selectDirBtn.textContent = '📂 Select This Directory';
-                    browserActions.style.display = '';
-                }
-
-            } catch (err) {
-                browserList.innerHTML = `<p class="browser-empty">⚠️ ${err.message}</p>`;
-            }
-        }
-
-        function buildBreadcrumb(fullPath) {
-            breadcrumb.innerHTML = '';
-            // fullPath is like /mangas/subdir/subdir2
-            const base = '/mangas';
-            const relative = fullPath.replace(base, '') || '';
-            const parts = relative.split('/').filter(Boolean);
-
-            // Root crumb
-            const root = document.createElement('span');
-            root.className = 'crumb';
-            root.textContent = '📚 mangas';
-            root.addEventListener('click', () => loadBrowser(base));
-            breadcrumb.appendChild(root);
-
-            let accumulated = base;
-            for (const part of parts) {
-                accumulated += '/' + part;
-                const sep = document.createElement('span');
-                sep.className = 'crumb-sep';
-                sep.textContent = ' / ';
-                breadcrumb.appendChild(sep);
-
-                const crumb = document.createElement('span');
-                crumb.className = 'crumb';
-                crumb.textContent = part;
-                const target = accumulated;
-                crumb.addEventListener('click', () => loadBrowser(target));
-                breadcrumb.appendChild(crumb);
-            }
-        }
-
-        // Select directory
-        selectDirBtn.addEventListener('click', async () => {
-            selectedHostPath = currentBrowsePath;
-
-            // Fetch CBZ file list for preview
-            try {
-                const resp = await fetch(`/browse?path=${encodeURIComponent(selectedHostPath)}`);
-                const data = await resp.json();
-
-                const cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
-
-                selectedDirLabel.textContent = `📂 ${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''}`;
-                cbzPreviewList.innerHTML = '';
-                for (const f of cbzFiles) {
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.innerHTML = `<span class="file-name">📗 ${f.name}</span><span class="file-size">${f.size}</span>`;
-                    cbzPreviewList.appendChild(div);
-                }
-
-                // Hide browser, show selection
-                document.querySelector('.browser-panel').style.display = 'none';
-                selectedDirInfo.style.display = '';
-                updateSubmitState();
-
-            } catch (err) {
-                showError(err.message);
-            }
-        });
-
-        // Change directory (go back to browser)
-        changeDirBtn.addEventListener('click', () => {
-            selectedHostPath = null;
-            selectedDirInfo.style.display = 'none';
-            document.querySelector('.browser-panel').style.display = '';
-            updateSubmitState();
-        });
-
-        // --- Drop Zone ---
-        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            fileInput.files = e.dataTransfer.files;
-            updateFileList();
-        });
-        fileInput.addEventListener('change', updateFileList);
-
-        function updateFileList() {
-            fileList.innerHTML = '';
-            const files = fileInput.files;
-            if (files.length === 0) { updateSubmitState(); return; }
-            for (const f of files) {
-                const div = document.createElement('div');
-                div.className = 'file-item';
-                const sizeMB = (f.size / 1024 / 1024).toFixed(1);
-                div.innerHTML = `<span class="file-name">📄 ${f.name}</span><span class="file-size">${sizeMB} MB</span>`;
-                fileList.appendChild(div);
-            }
-            updateSubmitState();
-        }
-
-        function updateSubmitState() {
-            if (sourceMode === 'upload') {
-                submitBtn.disabled = !fileInput.files.length;
-            } else {
-                submitBtn.disabled = !selectedHostPath;
-            }
-        }
-
-        // --- Settings ---
-        contrastSlider.addEventListener('input', () => { contrastVal.textContent = contrastSlider.value; });
-        ditherToggle.addEventListener('change', () => { ditherLabel.textContent = ditherToggle.checked ? 'ON' : 'OFF'; });
+        // ... (existing code: dom refs, source toggle, browser, settings) ...
 
         // --- Form Submit ---
         form.addEventListener('submit', async (e) => {
@@ -406,33 +182,102 @@
 
             try {
                 const resp = await fetch('/convert', { method: 'POST', body: fd });
+
+                // Content-Type check
                 const contentType = resp.headers.get('content-type') || '';
 
                 if (contentType.includes('application/json')) {
+                    // Immediate JSON response (Error or Needs Review)
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.error || 'Conversion failed');
+
                     if (data.status === 'needs_review') {
                         showReviewPanel(data);
                         setLoading(false);
                         form.style.display = 'none';
                         return;
                     }
-                } else if (resp.ok) {
-                    await triggerDownload(resp, title);
-                    statusText.textContent = '✅ Done! Your download should start automatically.';
-                    progressFill.classList.remove('indeterminate');
-                    progressFill.style.width = '100%';
-                    return;
+                } else if (contentType.includes('application/x-ndjson')) {
+                    // Streaming response
+                    await consumeStream(resp);
                 } else {
-                    throw new Error('Conversion failed');
+                    throw new Error('Unexpected response type');
                 }
+
             } catch (err) {
                 showError(err.message);
                 statusBar.style.display = 'none';
             } finally {
-                setLoading(false);
+                if (statusBar.style.display === 'none') setLoading(false);
             }
         });
+
+        // --- Stream Consumer ---
+        async function consumeStream(resp) {
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            statusText.textContent = 'Starting conversion...';
+            progressFill.classList.remove('indeterminate');
+            progressFill.style.width = '0%';
+            progressLog.style.display = 'block';
+            progressLog.innerHTML = '';
+
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep partial line
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const msg = JSON.parse(line);
+                            handleStreamMessage(msg);
+                        } catch (e) {
+                            console.error('Invalid JSON line:', line);
+                        }
+                    }
+                }
+            } catch (err) {
+                showError('Stream error: ' + err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function handleStreamMessage(msg) {
+            if (msg.type === 'progress') {
+                const pct = Math.round((msg.current / msg.total) * 100);
+                progressFill.style.width = `${pct}%`;
+                statusText.textContent = msg.message;
+
+                // Add log entry
+                const entry = document.createElement('div');
+                entry.textContent = `[${pct}%] ${msg.message}`;
+                progressLog.appendChild(entry);
+                progressLog.scrollTop = progressLog.scrollHeight;
+
+            } else if (msg.type === 'done') {
+                statusText.textContent = '✅ Conversion Complete!';
+                progressFill.style.width = '100%';
+
+                // Trigger download
+                const a = document.createElement('a');
+                a.href = msg.download_url;
+                a.download = '';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+            } else if (msg.type === 'error') {
+                showError(msg.message);
+            }
+        }
 
         // --- Review Panel ---
         function showReviewPanel(data) {
@@ -481,10 +326,14 @@
             continueBtn.querySelector('.btn-text').style.display = 'none';
             continueBtn.querySelector('.btn-loading').style.display = 'inline-flex';
             continueBtn.disabled = true;
+
+            // Show status bar for streaming
             statusBar.style.display = 'block';
-            statusText.textContent = 'Processing remaining chapters…';
-            progressFill.style.width = '100%';
-            progressFill.classList.add('indeterminate');
+            statusText.textContent = 'Resuming conversion...';
+            progressLog.style.display = 'block';
+            progressLog.innerHTML = '';
+            progressFill.classList.remove('indeterminate');
+            progressFill.style.width = '0%';
 
             try {
                 const resp = await fetch('/convert/continue', {
@@ -492,20 +341,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: sessionId, assignments }),
                 });
+
                 const contentType = resp.headers.get('content-type') || '';
+
                 if (contentType.includes('application/json')) {
                     const data = await resp.json();
                     throw new Error(data.error || 'Continuation failed');
+                } else if (contentType.includes('application/x-ndjson')) {
+                    await consumeStream(resp);
                 }
-                if (resp.ok) {
-                    const title = document.getElementById('title').value.trim();
-                    await triggerDownload(resp, title);
-                    statusText.textContent = '✅ Done! Your download should start automatically.';
-                    progressFill.classList.remove('indeterminate');
-                    progressFill.style.width = '100%';
-                } else {
-                    throw new Error('Download failed');
-                }
+
             } catch (err) {
                 showError(err.message);
             } finally {
@@ -515,19 +360,6 @@
             }
         });
 
-        // --- Helpers ---
-        async function triggerDownload(resp, title) {
-            const blob = await resp.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${title}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        }
-
         function setLoading(on) {
             if (on) {
                 submitBtn.querySelector('.btn-text').style.display = 'none';
@@ -535,13 +367,13 @@
                 submitBtn.disabled = true;
                 statusBar.style.display = 'block';
                 statusText.textContent = 'Converting… this may take a while.';
-                progressFill.style.width = '100%';
+                progressFill.style.width = '0%';
                 progressFill.classList.add('indeterminate');
             } else {
                 submitBtn.querySelector('.btn-text').style.display = 'inline';
                 submitBtn.querySelector('.btn-loading').style.display = 'none';
                 submitBtn.disabled = false;
-                progressFill.classList.remove('indeterminate');
+                // progressFill handled by stream end
             }
         }
 

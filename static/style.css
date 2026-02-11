@@ -856,6 +856,42 @@ input[type="range"]::-webkit-slider-thumb:hover {
     border-radius: 4px;
 }
 
+
+/* ---- Progress Log ---- */
+.progress-log {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    max-height: 150px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.3);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.progress-log div {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 2px;
+}
+
+.progress-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.progress-log::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+.progress-log::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 4px;
+}
+
 /* Mobile Adjustments */
 @media (max-width: 600px) {
     header h1 {
