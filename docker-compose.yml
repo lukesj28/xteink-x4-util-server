@@ -7,7 +7,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - manga_tmp:/tmp
-      - ./input:/manga/input
+      - ./mangas:/mangas:ro
     restart: unless-stopped
 
 volumes:

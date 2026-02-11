@@ -30,7 +30,7 @@
                 <label>Source</label>
                 <div class="source-toggle">
                     <button type="button" class="source-btn" data-mode="upload">📤 Upload Files</button>
-                    <button type="button" class="source-btn active" data-mode="hostdir">📂 Host Directory</button>
+                    <button type="button" class="source-btn active" data-mode="browse">📂 Browse</button>
                 </div>
             </div>
 
@@ -47,15 +47,26 @@
                 <div class="file-list" id="fileList"></div>
             </div>
 
-            <!-- Host Dir Section (shown in hostdir mode) -->
-            <div class="form-group" id="hostDirSection">
-                <label for="hostPath">Directory Path</label>
-                <div class="host-dir-row">
-                    <input type="text" id="hostPath" name="host_path" placeholder="/manga/input">
-                    <button type="button" id="scanBtn" class="btn-scan">Scan</button>
+            <!-- Directory Browser (shown in browse mode) -->
+            <div class="form-group" id="browseSection">
+                <div class="browser-panel">
+                    <div class="browser-breadcrumb" id="breadcrumb"></div>
+                    <div class="browser-list" id="browserList">
+                        <p class="browser-loading">Loading…</p>
+                    </div>
+                    <div class="browser-actions" id="browserActions" style="display:none;">
+                        <button type="button" id="selectDirBtn" class="btn-scan">📂 Select This Directory</button>
+                    </div>
                 </div>
-                <div class="file-list" id="hostFileList"></div>
-                <div class="scan-status" id="scanStatus" style="display:none;"></div>
+
+                <!-- Selected dir info -->
+                <div class="selected-dir-info" id="selectedDirInfo" style="display:none;">
+                    <div class="selected-dir-header">
+                        <span id="selectedDirLabel"></span>
+                        <button type="button" id="changeDirBtn" class="btn-change">Change</button>
+                    </div>
+                    <div class="file-list" id="cbzPreviewList"></div>
+                </div>
             </div>
 
             <!-- Settings -->
@@ -143,18 +154,23 @@
         const ditherToggle = document.getElementById('dithering');
         const ditherLabel = document.getElementById('ditherLabel');
         const uploadSection = document.getElementById('uploadSection');
-        const hostDirSection = document.getElementById('hostDirSection');
-        const hostPathInput = document.getElementById('hostPath');
-        const scanBtn = document.getElementById('scanBtn');
-        const hostFileList = document.getElementById('hostFileList');
-        const scanStatus = document.getElementById('scanStatus');
+        const browseSection = document.getElementById('browseSection');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const browserList = document.getElementById('browserList');
+        const browserActions = document.getElementById('browserActions');
+        const selectDirBtn = document.getElementById('selectDirBtn');
+        const selectedDirInfo = document.getElementById('selectedDirInfo');
+        const selectedDirLabel = document.getElementById('selectedDirLabel');
+        const changeDirBtn = document.getElementById('changeDirBtn');
+        const cbzPreviewList = document.getElementById('cbzPreviewList');
         const reviewPanel = document.getElementById('reviewPanel');
         const reviewGrid = document.getElementById('reviewGrid');
         const recognizedSummary = document.getElementById('recognizedSummary');
         const continueBtn = document.getElementById('continueBtn');
 
-        let sourceMode = 'hostdir';
-        let hostFilesFound = false;
+        let sourceMode = 'browse';
+        let selectedHostPath = null;
+        let currentBrowsePath = '/mangas';
 
         // --- Source Mode Toggle ---
         document.querySelectorAll('.source-btn').forEach(btn => {
@@ -165,19 +181,160 @@
 
                 if (sourceMode === 'upload') {
                     uploadSection.style.display = '';
-                    hostDirSection.style.display = 'none';
-                    updateSubmitState();
+                    browseSection.style.display = 'none';
                 } else {
                     uploadSection.style.display = 'none';
-                    hostDirSection.style.display = '';
-                    updateSubmitState();
+                    browseSection.style.display = '';
+                    if (!selectedHostPath) loadBrowser(currentBrowsePath);
                 }
+                updateSubmitState();
             });
         });
 
-        // --- Drop Zone (FIXED: no duplicate click handler) ---
-        // The <input type="file"> already covers the drop zone via CSS,
-        // so we only need drag-and-drop handlers.
+        // --- Directory Browser ---
+        async function loadBrowser(path) {
+            currentBrowsePath = path;
+            browserList.innerHTML = '<p class="browser-loading">Loading…</p>';
+            browserActions.style.display = 'none';
+            errorMsg.style.display = 'none';
+
+            try {
+                const resp = await fetch(`/browse?path=${encodeURIComponent(path)}`);
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    browserList.innerHTML = `<p class="browser-empty">⚠️ ${data.error}</p>`;
+                    return;
+                }
+
+                // Build breadcrumb
+                buildBreadcrumb(data.current_path);
+
+                // Build listing
+                browserList.innerHTML = '';
+
+                // Back button (if not at root)
+                if (data.parent) {
+                    const back = document.createElement('div');
+                    back.className = 'browser-item browser-dir';
+                    back.innerHTML = '<span>⬆️ ..</span>';
+                    back.addEventListener('click', () => loadBrowser(data.parent));
+                    browserList.appendChild(back);
+                }
+
+                if (data.dirs.length === 0 && data.files.length === 0) {
+                    const empty = document.createElement('p');
+                    empty.className = 'browser-empty';
+                    empty.textContent = 'Empty directory';
+                    browserList.appendChild(empty);
+                }
+
+                // Directories
+                for (const dir of data.dirs) {
+                    const el = document.createElement('div');
+                    el.className = 'browser-item browser-dir';
+                    el.innerHTML = `<span>📁 ${dir.name}</span>`;
+                    el.addEventListener('click', () => loadBrowser(dir.path));
+                    browserList.appendChild(el);
+                }
+
+                // Files
+                for (const file of data.files) {
+                    const el = document.createElement('div');
+                    el.className = 'browser-item browser-file';
+                    const isCbz = file.name.toLowerCase().endsWith('.cbz');
+                    el.innerHTML = `<span>${isCbz ? '📗' : '📄'} ${file.name}</span><span class="file-size">${file.size}</span>`;
+                    browserList.appendChild(el);
+                }
+
+                // Show select button if there are CBZ files
+                const hasCbz = data.files.some(f => f.name.toLowerCase().endsWith('.cbz'));
+                const cbzCount = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz')).length;
+                if (hasCbz) {
+                    selectDirBtn.textContent = `📂 Select (${cbzCount} CBZ file${cbzCount !== 1 ? 's' : ''})`;
+                    browserActions.style.display = '';
+                } else if (data.dirs.length > 0) {
+                    browserActions.style.display = 'none';
+                } else {
+                    selectDirBtn.textContent = '📂 Select This Directory';
+                    browserActions.style.display = '';
+                }
+
+            } catch (err) {
+                browserList.innerHTML = `<p class="browser-empty">⚠️ ${err.message}</p>`;
+            }
+        }
+
+        function buildBreadcrumb(fullPath) {
+            breadcrumb.innerHTML = '';
+            // fullPath is like /mangas/subdir/subdir2
+            const base = '/mangas';
+            const relative = fullPath.replace(base, '') || '';
+            const parts = relative.split('/').filter(Boolean);
+
+            // Root crumb
+            const root = document.createElement('span');
+            root.className = 'crumb';
+            root.textContent = '📚 mangas';
+            root.addEventListener('click', () => loadBrowser(base));
+            breadcrumb.appendChild(root);
+
+            let accumulated = base;
+            for (const part of parts) {
+                accumulated += '/' + part;
+                const sep = document.createElement('span');
+                sep.className = 'crumb-sep';
+                sep.textContent = ' / ';
+                breadcrumb.appendChild(sep);
+
+                const crumb = document.createElement('span');
+                crumb.className = 'crumb';
+                crumb.textContent = part;
+                const target = accumulated;
+                crumb.addEventListener('click', () => loadBrowser(target));
+                breadcrumb.appendChild(crumb);
+            }
+        }
+
+        // Select directory
+        selectDirBtn.addEventListener('click', async () => {
+            selectedHostPath = currentBrowsePath;
+
+            // Fetch CBZ file list for preview
+            try {
+                const resp = await fetch(`/browse?path=${encodeURIComponent(selectedHostPath)}`);
+                const data = await resp.json();
+
+                const cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
+
+                selectedDirLabel.textContent = `📂 ${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''}`;
+                cbzPreviewList.innerHTML = '';
+                for (const f of cbzFiles) {
+                    const div = document.createElement('div');
+                    div.className = 'file-item';
+                    div.innerHTML = `<span class="file-name">📗 ${f.name}</span><span class="file-size">${f.size}</span>`;
+                    cbzPreviewList.appendChild(div);
+                }
+
+                // Hide browser, show selection
+                document.querySelector('.browser-panel').style.display = 'none';
+                selectedDirInfo.style.display = '';
+                updateSubmitState();
+
+            } catch (err) {
+                showError(err.message);
+            }
+        });
+
+        // Change directory (go back to browser)
+        changeDirBtn.addEventListener('click', () => {
+            selectedHostPath = null;
+            selectedDirInfo.style.display = 'none';
+            document.querySelector('.browser-panel').style.display = '';
+            updateSubmitState();
+        });
+
+        // --- Drop Zone ---
         dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
         dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
         dropZone.addEventListener('drop', e => {
@@ -191,10 +348,7 @@
         function updateFileList() {
             fileList.innerHTML = '';
             const files = fileInput.files;
-            if (files.length === 0) {
-                updateSubmitState();
-                return;
-            }
+            if (files.length === 0) { updateSubmitState(); return; }
             for (const f of files) {
                 const div = document.createElement('div');
                 div.className = 'file-item';
@@ -209,52 +363,9 @@
             if (sourceMode === 'upload') {
                 submitBtn.disabled = !fileInput.files.length;
             } else {
-                submitBtn.disabled = !hostFilesFound;
+                submitBtn.disabled = !selectedHostPath;
             }
         }
-
-        // --- Scan Host Directory ---
-        scanBtn.addEventListener('click', async () => {
-            const path = hostPathInput.value.trim();
-            if (!path) { showError('Please enter a directory path.'); return; }
-
-            scanBtn.disabled = true;
-            scanBtn.textContent = 'Scanning…';
-            scanStatus.style.display = 'none';
-            hostFileList.innerHTML = '';
-            errorMsg.style.display = 'none';
-            hostFilesFound = false;
-
-            try {
-                const resp = await fetch(`/scan?path=${encodeURIComponent(path)}`);
-                const data = await resp.json();
-
-                if (!resp.ok) {
-                    showError(data.error || 'Scan failed');
-                    return;
-                }
-
-                scanStatus.style.display = 'block';
-                scanStatus.textContent = `Found ${data.count} CBZ file${data.count !== 1 ? 's' : ''}`;
-                scanStatus.className = 'scan-status scan-success';
-
-                for (const f of data.files) {
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.innerHTML = `<span class="file-name">📄 ${f}</span>`;
-                    hostFileList.appendChild(div);
-                }
-
-                hostFilesFound = true;
-                updateSubmitState();
-
-            } catch (err) {
-                showError(err.message);
-            } finally {
-                scanBtn.disabled = false;
-                scanBtn.textContent = 'Scan';
-            }
-        });
 
         // --- Settings ---
         contrastSlider.addEventListener('input', () => { contrastVal.textContent = contrastSlider.value; });
@@ -271,14 +382,13 @@
             if (sourceMode === 'upload' && !fileInput.files.length) {
                 showError('Please select CBZ files.'); return;
             }
-            if (sourceMode === 'hostdir' && !hostFilesFound) {
-                showError('Please scan a host directory first.'); return;
+            if (sourceMode === 'browse' && !selectedHostPath) {
+                showError('Please select a directory.'); return;
             }
 
-            // Build form data
             const fd = new FormData();
             fd.append('title', title);
-            fd.append('source_mode', sourceMode);
+            fd.append('source_mode', sourceMode === 'browse' ? 'hostdir' : 'upload');
             fd.append('dithering', ditherToggle.checked ? 'true' : 'false');
             fd.append('contrast', contrastSlider.value);
             fd.append('target_width', document.getElementById('target_width').value);
@@ -289,32 +399,25 @@
                     fd.append('cbz_files', f);
                 }
             } else {
-                fd.append('host_path', hostPathInput.value.trim());
+                fd.append('host_path', selectedHostPath);
             }
 
             setLoading(true);
 
             try {
                 const resp = await fetch('/convert', { method: 'POST', body: fd });
-
                 const contentType = resp.headers.get('content-type') || '';
 
                 if (contentType.includes('application/json')) {
                     const data = await resp.json();
-
-                    if (!resp.ok) {
-                        throw new Error(data.error || 'Conversion failed');
-                    }
-
+                    if (!resp.ok) throw new Error(data.error || 'Conversion failed');
                     if (data.status === 'needs_review') {
-                        // Show review panel
                         showReviewPanel(data);
                         setLoading(false);
                         form.style.display = 'none';
                         return;
                     }
                 } else if (resp.ok) {
-                    // Direct download
                     await triggerDownload(resp, title);
                     statusText.textContent = '✅ Done! Your download should start automatically.';
                     progressFill.classList.remove('indeterminate');
@@ -323,7 +426,6 @@
                 } else {
                     throw new Error('Conversion failed');
                 }
-
             } catch (err) {
                 showError(err.message);
                 statusBar.style.display = 'none';
@@ -335,14 +437,12 @@
         // --- Review Panel ---
         function showReviewPanel(data) {
             reviewPanel.style.display = '';
-
             if (data.recognized_count > 0) {
                 recognizedSummary.innerHTML =
                     `<p class="recognized-info">✅ <strong>${data.recognized_count}</strong> chapter${data.recognized_count !== 1 ? 's' : ''} auto-recognized: ${data.recognized_chapters.join(', ')}</p>`;
             } else {
                 recognizedSummary.innerHTML = '<p class="recognized-info">No chapters were auto-recognized.</p>';
             }
-
             reviewGrid.innerHTML = '';
             for (const item of data.unrecognized) {
                 const card = document.createElement('div');
@@ -359,8 +459,6 @@
                 `;
                 reviewGrid.appendChild(card);
             }
-
-            // Store session ID
             reviewPanel.dataset.sessionId = data.session_id;
         }
 
@@ -373,19 +471,11 @@
 
             for (const inp of inputs) {
                 const val = inp.value.trim();
-                if (!val) {
-                    inp.classList.add('input-error');
-                    valid = false;
-                } else {
-                    inp.classList.remove('input-error');
-                    assignments[inp.dataset.filename] = parseInt(val, 10);
-                }
+                if (!val) { inp.classList.add('input-error'); valid = false; }
+                else { inp.classList.remove('input-error'); assignments[inp.dataset.filename] = parseInt(val, 10); }
             }
 
-            if (!valid) {
-                showError('Please assign a chapter number to all files.');
-                return;
-            }
+            if (!valid) { showError('Please assign a chapter number to all files.'); return; }
 
             errorMsg.style.display = 'none';
             continueBtn.querySelector('.btn-text').style.display = 'none';
@@ -402,13 +492,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: sessionId, assignments }),
                 });
-
                 const contentType = resp.headers.get('content-type') || '';
                 if (contentType.includes('application/json')) {
                     const data = await resp.json();
                     throw new Error(data.error || 'Continuation failed');
                 }
-
                 if (resp.ok) {
                     const title = document.getElementById('title').value.trim();
                     await triggerDownload(resp, title);
@@ -418,7 +506,6 @@
                 } else {
                     throw new Error('Download failed');
                 }
-
             } catch (err) {
                 showError(err.message);
             } finally {
@@ -447,7 +534,7 @@
                 submitBtn.querySelector('.btn-loading').style.display = 'inline-flex';
                 submitBtn.disabled = true;
                 statusBar.style.display = 'block';
-                statusText.textContent = 'Uploading & converting… this may take a while.';
+                statusText.textContent = 'Converting… this may take a while.';
                 progressFill.style.width = '100%';
                 progressFill.classList.add('indeterminate');
             } else {
@@ -462,6 +549,9 @@
             errorMsg.textContent = msg;
             errorMsg.style.display = 'block';
         }
+
+        // --- Init: load browser on page load ---
+        loadBrowser('/mangas');
     </script>
 </body>
 

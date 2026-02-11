@@ -698,6 +698,164 @@ input[type="range"]::-webkit-slider-thumb:hover {
     background: #fff0f0;
 }
 
+/* ---- Directory Browser ---- */
+.browser-panel {
+    background: var(--surface);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-offset) var(--shadow-offset) 0 #000;
+    overflow: hidden;
+}
+
+.browser-breadcrumb {
+    padding: 0.8rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: var(--border-width) solid var(--border-color);
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+}
+
+.crumb {
+    color: var(--secondary);
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.crumb:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.crumb:last-child {
+    color: var(--text);
+    cursor: default;
+}
+
+.crumb:last-child:hover {
+    text-decoration: none;
+}
+
+.crumb-sep {
+    color: var(--text-muted);
+}
+
+.browser-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.browser-loading,
+.browser-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+}
+
+.browser-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    font-weight: 500;
+}
+
+.browser-item:last-child {
+    border-bottom: none;
+}
+
+.browser-dir:hover {
+    background: rgba(8, 217, 214, 0.1);
+    transform: translateX(4px);
+}
+
+.browser-file {
+    cursor: default;
+    color: var(--text-muted);
+}
+
+.browser-file .file-size {
+    font-size: 0.8rem;
+}
+
+.browser-actions {
+    padding: 0.8rem 1rem;
+    border-top: var(--border-width) solid var(--border-color);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* ---- Selected Directory Info ---- */
+.selected-dir-info {
+    background: var(--surface);
+    border: var(--border-width) solid var(--secondary);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-offset) var(--shadow-offset) 0 rgba(8, 217, 214, 0.3);
+    overflow: hidden;
+    animation: slideUp 0.3s ease-out;
+}
+
+.selected-dir-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    background: rgba(8, 217, 214, 0.1);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.selected-dir-header span {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    color: var(--secondary);
+}
+
+.btn-change {
+    padding: 0.3rem 0.8rem;
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-change:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+.selected-dir-info .file-list {
+    padding: 0.5rem;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+/* ---- Scrollbar ---- */
+.browser-list::-webkit-scrollbar,
+.selected-dir-info .file-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.browser-list::-webkit-scrollbar-track,
+.selected-dir-info .file-list::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+.browser-list::-webkit-scrollbar-thumb,
+.selected-dir-info .file-list::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 4px;
+}
+
 /* Mobile Adjustments */
 @media (max-width: 600px) {
     header h1 {
@@ -710,5 +868,9 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
     .review-grid {
         grid-template-columns: 1fr;
+    }
+
+    .browser-list {
+        max-height: 250px;
     }
 }

@@ -31,25 +31,59 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/scan", methods=["GET"])
-def scan_directory():
-    """List CBZ files from a host directory path."""
-    dir_path = request.args.get("path", "").strip()
-    if not dir_path:
-        return jsonify({"error": "No path provided"}), 400
+BROWSE_ROOT = "/mangas"
 
-    if not os.path.isdir(dir_path):
-        return jsonify({"error": f"Directory not found: {dir_path}"}), 404
 
-    cbz_files = sorted(
-        f for f in os.listdir(dir_path)
-        if f.lower().endswith(".cbz") and os.path.isfile(os.path.join(dir_path, f))
-    )
+def _format_size(size_bytes):
+    """Format bytes into human-readable size."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
 
-    if not cbz_files:
-        return jsonify({"error": "No .cbz files found in directory"}), 404
 
-    return jsonify({"files": cbz_files, "count": len(cbz_files)})
+@app.route("/browse", methods=["GET"])
+def browse_directory():
+    """Browse directories and files under /mangas."""
+    raw_path = request.args.get("path", BROWSE_ROOT).strip()
+
+    # Resolve and enforce that path stays within BROWSE_ROOT
+    resolved = os.path.realpath(raw_path)
+    root_resolved = os.path.realpath(BROWSE_ROOT)
+
+    if not resolved.startswith(root_resolved):
+        return jsonify({"error": "Access denied: path outside allowed root"}), 403
+
+    if not os.path.isdir(resolved):
+        return jsonify({"error": f"Directory not found: {raw_path}"}), 404
+
+    dirs = []
+    files = []
+
+    try:
+        for entry in sorted(os.scandir(resolved), key=lambda e: e.name.lower()):
+            if entry.name.startswith("."):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                dirs.append({"name": entry.name, "path": os.path.join(resolved, entry.name)})
+            elif entry.is_file(follow_symlinks=False):
+                stat = entry.stat()
+                files.append({"name": entry.name, "size": _format_size(stat.st_size)})
+    except PermissionError:
+        return jsonify({"error": "Permission denied"}), 403
+
+    # Parent path (only if not at root)
+    parent = None
+    if resolved != root_resolved:
+        parent = os.path.dirname(resolved)
+
+    return jsonify({
+        "current_path": resolved,
+        "parent": parent,
+        "dirs": dirs,
+        "files": files,
+    })
 
 
 @app.route("/convert", methods=["POST"])
