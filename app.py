@@ -18,7 +18,6 @@ from pathlib import Path
 from flask import Flask, render_template, request, send_file, jsonify, Response
 from werkzeug.utils import secure_filename
 
-# localized imports
 from converter import convert_chapters, classify_cbz_files
 
 # Configure logging
@@ -30,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 0  # Unlimited upload size
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 * 1024  # 16 GB upload limit
 BROWSE_ROOT = "/mangas"
 
 # In-memory session store: session_id -> session data dict
@@ -174,6 +173,8 @@ def _stream_conversion(chapter_map, work_dir, output_base, manga_title, settings
 @app.route("/convert", methods=["POST"])
 def convert():
     manga_title = request.form.get("title", "").strip()
+    logger.info(f"Conversion request for: {manga_title}")
+    
     if not manga_title:
         return jsonify({"error": "Manga title is required"}), 400
 
@@ -183,16 +184,19 @@ def convert():
         "target_width": int(request.form.get("target_width", "480")),
         "target_height": int(request.form.get("target_height", "800")),
     }
+    logger.info(f"Settings: {settings}")
 
     source_mode = request.form.get("source_mode", "upload")
     work_dir = tempfile.mkdtemp(prefix="manga_fmt_")
     session_id = str(uuid.uuid4())
+    logger.info(f"Source mode: {source_mode}, Session ID: {session_id}")
 
     try:
         cbz_paths = []
         if source_mode == "hostdir":
             host_path = request.form.get("host_path", "").strip()
             if not host_path or not os.path.isdir(host_path):
+                logger.error(f"Invalid host path: {host_path}")
                 return jsonify({"error": f"Invalid host directory: {host_path}"}), 400
             for f in sorted(os.listdir(host_path)):
                 if f.lower().endswith(".cbz"):
@@ -209,14 +213,19 @@ def convert():
                     f.save(save_path)
                     cbz_paths.append(save_path)
 
+        logger.info(f"Found {len(cbz_paths)} CBZ files")
+
         if not cbz_paths:
             return jsonify({"error": "No valid .cbz files found"}), 400
 
         recognized, unrecognized = classify_cbz_files(cbz_paths)
+        logger.info(f"Classified: {len(recognized)} recognized, {len(unrecognized)} unrecognized")
+        
         output_base = os.path.join(work_dir, "output")
         os.makedirs(output_base, exist_ok=True)
 
         if unrecognized:
+            logger.info("Unrecognized files found, returning needs_review")
             _sessions[session_id] = {
                 "work_dir": work_dir,
                 "output_base": output_base,
@@ -240,6 +249,7 @@ def convert():
             })
 
         # If NO unrecognized -> Stream conversion of recognized
+        logger.info("Starting stream conversion")
         _sessions[session_id] = {"work_dir": work_dir} # Track for cleanup
         return Response(
             _stream_conversion(recognized, work_dir, output_base, manga_title, settings, session_id),

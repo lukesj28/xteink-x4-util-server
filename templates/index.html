@@ -427,7 +427,9 @@
                     // Streaming response
                     await consumeStream(resp);
                 } else {
-                    throw new Error('Unexpected response type');
+                    const text = await resp.text();
+                    console.error('Unexpected Response:', resp.status, contentType, text);
+                    throw new Error(`Unexpected response: ${resp.status} ${resp.statusText} (${contentType}). Check console for details.`);
                 }
 
             } catch (err) {
