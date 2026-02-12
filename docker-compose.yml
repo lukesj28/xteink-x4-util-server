@@ -5,10 +5,24 @@ services:
       - "5888:5000"
     environment:
       - PYTHONUNBUFFERED=1
+      - CALIBRE_IO_PATH=/calibre-io
     volumes:
       - manga_tmp:/tmp
       - ./mangas:/mangas:ro
+      - calibre_io:/calibre-io
     restart: unless-stopped
+
+  # --- Calibre auto-converter (user-configured) ---
+  # Watches /calibre-io/input/ for new PDFs and writes EPUBs to /calibre-io/output/.
+  # Uncomment and configure the Calibre container below:
+  #
+  calibre:
+    image: linuxserver/calibre:latest
+    volumes:
+      - calibre_io:/calibre-io
+    # Configure Calibre to watch input/ and convert to output/
+    # See: https://manual.calibre-ebook.com/generated/en/ebook-convert.html
 
 volumes:
   manga_tmp:
+  calibre_io:

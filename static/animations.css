@@ -1,0 +1,59 @@
+/* ================================================
+   X4 Utilities — Shared Animations
+   ================================================ */
+
+/* ---- Keyframes ---- */
+
+@keyframes popScale {
+    0% { opacity: 0; transform: scale(0.5); }
+    80% { transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cardPop {
+    from { opacity: 0; transform: translateY(20px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes containerPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* ---- Utility Classes ---- */
+
+/* "Pop" effect for titles/elements (Scale only) */
+/* Note: If element has rotation, use a wrapper or specifics */
+.anim-pop-scale {
+    animation: popScale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* "Pop" effect for cards (TranslateY + Scale) */
+.anim-card-pop {
+    animation: cardPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Simple fade slide up */
+.anim-fade-slide-up {
+    animation: fadeSlideUp 0.4s ease-out both;
+}
+
+/* Container entrance */
+.anim-container-pop {
+    animation: containerPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* ---- Staggered Delays ---- */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
+.delay-700 { animation-delay: 700ms; }
+.delay-800 { animation-delay: 800ms; }

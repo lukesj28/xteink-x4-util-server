@@ -1,44 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manga Formatter — CBZ to XTC</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Outfit:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-</head>
+{% block title %}Manga Formatter — CBZ to XTC{% endblock %}
 
-<body>
-    <div class="container">
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('manga_formatter.static', filename='style.css') }}">
+{% endblock %}
+
+{% block content %}
+    <div class="container anim-container-pop">
         <header>
-            <h1>📚 Manga Formatter</h1>
-            <p class="subtitle">Convert CBZ manga to XTC format</p>
+            <h1 class="anim-pop-scale"><span>Manga Formatter</span></h1>
+            <p class="subtitle anim-fade-slide-up delay-200">Convert CBZ manga to XTC format</p>
         </header>
 
         <!-- Phase 1: Main Form -->
         <form id="convertForm" enctype="multipart/form-data">
             <!-- Title -->
-            <div class="form-group">
+            <div class="form-group anim-card-pop delay-300">
                 <label for="title">Manga Title</label>
                 <input type="text" id="title" name="title" placeholder="e.g. Hunter X Hunter" required>
             </div>
 
             <!-- Source Mode Toggle -->
-            <div class="form-group">
+            <div class="form-group anim-card-pop delay-400">
                 <label>Source</label>
                 <div class="source-toggle">
-                    <button type="button" class="source-btn" data-mode="upload">📤 Upload Files</button>
-                    <button type="button" class="source-btn active" data-mode="browse">📂 Browse</button>
+                    <button type="button" class="source-btn" data-mode="upload">Upload Files</button>
+                    <button type="button" class="source-btn active" data-mode="browse">Browse</button>
                 </div>
             </div>
 
             <!-- Upload Zone (shown in upload mode) -->
-            <div class="form-group" id="uploadSection" style="display:none;">
+            <div class="form-group anim-card-pop delay-500" id="uploadSection" style="display:none;">
                 <div class="drop-zone" id="dropZone">
                     <div class="drop-zone-content">
-                        <span class="drop-icon">📁</span>
+                        <span class="drop-icon">&#128193;</span>
                         <p>Drag & drop CBZ files here</p>
                         <p class="drop-hint">or click to browse</p>
                     </div>
@@ -48,14 +44,14 @@
             </div>
 
             <!-- Directory Browser (shown in browse mode) -->
-            <div class="form-group" id="browseSection">
+            <div class="form-group anim-card-pop delay-500" id="browseSection">
                 <div class="browser-panel">
                     <div class="browser-breadcrumb" id="breadcrumb"></div>
                     <div class="browser-list" id="browserList">
                         <p class="browser-loading">Loading…</p>
                     </div>
                     <div class="browser-actions" id="browserActions" style="display:none;">
-                        <button type="button" id="selectDirBtn" class="btn-scan">📂 Select This Directory</button>
+                        <button type="button" id="selectDirBtn" class="btn-scan">Select This Directory</button>
                     </div>
                 </div>
 
@@ -70,8 +66,8 @@
             </div>
 
             <!-- Settings -->
-            <details class="settings-panel">
-                <summary>⚙️ Conversion Settings</summary>
+            <details class="settings-panel anim-card-pop delay-600">
+                <summary>Conversion Settings</summary>
                 <div class="settings-grid">
                     <div class="setting">
                         <label for="dithering">Dithering</label>
@@ -100,7 +96,7 @@
             </details>
 
             <!-- Submit -->
-            <button type="submit" id="submitBtn" class="btn-primary" disabled>
+            <button type="submit" id="submitBtn" class="btn-primary anim-card-pop delay-700" disabled>
                 <span class="btn-text">Convert & Download</span>
                 <span class="btn-loading" style="display:none;">
                     <span class="spinner"></span> Converting…
@@ -110,7 +106,7 @@
 
         <!-- Phase 2: Review Panel (hidden initially) -->
         <div class="review-panel" id="reviewPanel" style="display:none;">
-            <h2>📋 Manual Chapter Assignment</h2>
+            <h2>Manual Chapter Assignment</h2>
             <p class="review-intro">The following files couldn't be auto-assigned chapter numbers. Please review and
                 assign them.</p>
 
@@ -138,7 +134,9 @@
         <!-- Error -->
         <div class="error-msg" id="errorMsg" style="display:none;"></div>
     </div>
+{% endblock %}
 
+{% block scripts %}
     <script>
         // --- DOM refs ---
         const form = document.getElementById('convertForm');
@@ -201,11 +199,11 @@
             errorMsg.style.display = 'none';
 
             try {
-                const resp = await fetch(`/browse?path=${encodeURIComponent(path)}`);
+                const resp = await fetch(`/manga-formatter/browse?path=${encodeURIComponent(path)}`);
                 const data = await resp.json();
 
                 if (!resp.ok) {
-                    browserList.innerHTML = `<p class="browser-empty">⚠️ ${data.error}</p>`;
+                    browserList.innerHTML = `<p class="browser-empty">${data.error}</p>`;
                     return;
                 }
 
@@ -219,7 +217,7 @@
                 if (data.parent) {
                     const back = document.createElement('div');
                     back.className = 'browser-item browser-dir';
-                    back.innerHTML = '<span>⬆️ ..</span>';
+                    back.innerHTML = '<span>..</span>';
                     back.addEventListener('click', () => loadBrowser(data.parent));
                     browserList.appendChild(back);
                 }
@@ -235,7 +233,7 @@
                 for (const dir of data.dirs) {
                     const el = document.createElement('div');
                     el.className = 'browser-item browser-dir';
-                    el.innerHTML = `<span>📁 ${dir.name}</span>`;
+                    el.innerHTML = `<span>${dir.name}</span>`;
                     el.addEventListener('click', () => loadBrowser(dir.path));
                     browserList.appendChild(el);
                 }
@@ -244,8 +242,7 @@
                 for (const file of data.files) {
                     const el = document.createElement('div');
                     el.className = 'browser-item browser-file';
-                    const isCbz = file.name.toLowerCase().endsWith('.cbz');
-                    el.innerHTML = `<span>${isCbz ? '📗' : '📄'} ${file.name}</span><span class="file-size">${file.size}</span>`;
+                    el.innerHTML = `<span>${file.name}</span><span class="file-size">${file.size}</span>`;
                     browserList.appendChild(el);
                 }
 
@@ -253,23 +250,22 @@
                 const hasCbz = data.files.some(f => f.name.toLowerCase().endsWith('.cbz'));
                 const cbzCount = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz')).length;
                 if (hasCbz) {
-                    selectDirBtn.textContent = `📂 Select (${cbzCount} CBZ file${cbzCount !== 1 ? 's' : ''})`;
+                    selectDirBtn.textContent = `Select (${cbzCount} CBZ file${cbzCount !== 1 ? 's' : ''})`;
                     browserActions.style.display = '';
                 } else if (data.dirs.length > 0) {
                     browserActions.style.display = 'none';
                 } else {
-                    selectDirBtn.textContent = '📂 Select This Directory';
+                    selectDirBtn.textContent = 'Select This Directory';
                     browserActions.style.display = '';
                 }
 
             } catch (err) {
-                browserList.innerHTML = `<p class="browser-empty">⚠️ ${err.message}</p>`;
+                browserList.innerHTML = `<p class="browser-empty">${err.message}</p>`;
             }
         }
 
         function buildBreadcrumb(fullPath) {
             breadcrumb.innerHTML = '';
-            // fullPath is like /mangas/subdir/subdir2
             const base = '/mangas';
             const relative = fullPath.replace(base, '') || '';
             const parts = relative.split('/').filter(Boolean);
@@ -277,7 +273,7 @@
             // Root crumb
             const root = document.createElement('span');
             root.className = 'crumb';
-            root.textContent = '📚 mangas';
+            root.textContent = 'mangas';
             root.addEventListener('click', () => loadBrowser(base));
             breadcrumb.appendChild(root);
 
@@ -302,23 +298,21 @@
         selectDirBtn.addEventListener('click', async () => {
             selectedHostPath = currentBrowsePath;
 
-            // Fetch CBZ file list for preview
             try {
-                const resp = await fetch(`/browse?path=${encodeURIComponent(selectedHostPath)}`);
+                const resp = await fetch(`/manga-formatter/browse?path=${encodeURIComponent(selectedHostPath)}`);
                 const data = await resp.json();
 
                 const cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
 
-                selectedDirLabel.textContent = `📂 ${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''}`;
+                selectedDirLabel.textContent = `${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''}`;
                 cbzPreviewList.innerHTML = '';
                 for (const f of cbzFiles) {
                     const div = document.createElement('div');
                     div.className = 'file-item';
-                    div.innerHTML = `<span class="file-name">📗 ${f.name}</span><span class="file-size">${f.size}</span>`;
+                    div.innerHTML = `<span class="file-name">${f.name}</span><span class="file-size">${f.size}</span>`;
                     cbzPreviewList.appendChild(div);
                 }
 
-                // Hide browser, show selection
                 document.querySelector('.browser-panel').style.display = 'none';
                 selectedDirInfo.style.display = '';
                 updateSubmitState();
@@ -355,7 +349,7 @@
                 const div = document.createElement('div');
                 div.className = 'file-item';
                 const sizeMB = (f.size / 1024 / 1024).toFixed(1);
-                div.innerHTML = `<span class="file-name">📄 ${f.name}</span><span class="file-size">${sizeMB} MB</span>`;
+                div.innerHTML = `<span class="file-name">${f.name}</span><span class="file-size">${sizeMB} MB</span>`;
                 fileList.appendChild(div);
             }
             updateSubmitState();
@@ -407,13 +401,11 @@
             setLoading(true);
 
             try {
-                const resp = await fetch('/convert', { method: 'POST', body: fd });
+                const resp = await fetch('/manga-formatter/convert', { method: 'POST', body: fd });
 
-                // Content-Type check
                 const contentType = resp.headers.get('content-type') || '';
 
                 if (contentType.includes('application/json')) {
-                    // Immediate JSON response (Error or Needs Review)
                     const data = await resp.json();
                     if (!resp.ok) throw new Error(data.error || 'Conversion failed');
 
@@ -424,7 +416,6 @@
                         return;
                     }
                 } else if (contentType.includes('application/x-ndjson')) {
-                    // Streaming response
                     await consumeStream(resp);
                 } else {
                     const text = await resp.text();
@@ -459,7 +450,7 @@
 
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep partial line
+                    buffer = lines.pop();
 
                     for (const line of lines) {
                         if (!line.trim()) continue;
@@ -484,17 +475,15 @@
                 progressFill.style.width = `${pct}%`;
                 statusText.textContent = msg.message;
 
-                // Add log entry
                 const entry = document.createElement('div');
                 entry.textContent = `[${pct}%] ${msg.message}`;
                 progressLog.appendChild(entry);
                 progressLog.scrollTop = progressLog.scrollHeight;
 
             } else if (msg.type === 'done') {
-                statusText.textContent = '✅ Conversion Complete!';
+                statusText.textContent = 'Conversion Complete!';
                 progressFill.style.width = '100%';
 
-                // Trigger download
                 const a = document.createElement('a');
                 a.href = msg.download_url;
                 a.download = '';
@@ -512,7 +501,7 @@
             reviewPanel.style.display = '';
             if (data.recognized_count > 0) {
                 recognizedSummary.innerHTML =
-                    `<p class="recognized-info">✅ <strong>${data.recognized_count}</strong> chapter${data.recognized_count !== 1 ? 's' : ''} auto-recognized: ${data.recognized_chapters.join(', ')}</p>`;
+                    `<p class="recognized-info"><strong>${data.recognized_count}</strong> chapter${data.recognized_count !== 1 ? 's' : ''} auto-recognized: ${data.recognized_chapters.join(', ')}</p>`;
             } else {
                 recognizedSummary.innerHTML = '<p class="recognized-info">No chapters were auto-recognized.</p>';
             }
@@ -555,7 +544,6 @@
             continueBtn.querySelector('.btn-loading').style.display = 'inline-flex';
             continueBtn.disabled = true;
 
-            // Show status bar for streaming
             statusBar.style.display = 'block';
             statusText.textContent = 'Resuming conversion...';
             progressLog.style.display = 'block';
@@ -564,7 +552,7 @@
             progressFill.style.width = '0%';
 
             try {
-                const resp = await fetch('/convert/continue', {
+                const resp = await fetch('/manga-formatter/convert/continue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: sessionId, assignments }),
@@ -601,7 +589,6 @@
                 submitBtn.querySelector('.btn-text').style.display = 'inline';
                 submitBtn.querySelector('.btn-loading').style.display = 'none';
                 submitBtn.disabled = false;
-                // progressFill handled by stream end
             }
         }
 
@@ -613,6 +600,4 @@
         // --- Init: load browser on page load ---
         loadBrowser('/mangas');
     </script>
-</body>
-
-</html>
+{% endblock %}

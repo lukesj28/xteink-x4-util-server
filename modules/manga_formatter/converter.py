@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from xtc import build_xtc, build_single_page_xtc
+from modules.manga_formatter.xtc import build_xtc, build_single_page_xtc
 
 
 # ---------- defaults ----------
@@ -128,7 +128,7 @@ def classify_cbz_files(cbz_paths):
 # ------------------------------------------------------------------
 
 def _apply_contrast(img, level):
-    """Apply contrast boost identical to cbz2xtc.py defaults."""
+    """Apply contrast boost."""
     if level == 0:
         return img
     black_cutoff = 3 * level
@@ -189,7 +189,7 @@ def _process_zoom_page(img, settings):
     th = settings["target_height"]
     width, height = img.size
 
-    # ---- overlapping-thirds math from cbz2xtc.py ----
+    # ---- overlapping-thirds math ----
     desired_segments = 3
     established_scale = th * 1.0 / width
     overlapping_height = tw / established_scale

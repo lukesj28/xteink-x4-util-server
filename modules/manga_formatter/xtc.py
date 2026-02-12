@@ -1,6 +1,6 @@
 """
 XTC/XTG binary format builder.
-Ported from epub2xtc/png2xtc.py for use as a library.
+Library for XTC/XTG binary format creation.
 """
 
 import hashlib
