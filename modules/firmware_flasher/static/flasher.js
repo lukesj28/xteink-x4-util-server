@@ -77,14 +77,6 @@ function log(msg) {
 // Initialize
 async function init() {
     log('Initializing Flasher...');
-    
-    // Check Web Serial
-    if (!navigator.serial) {
-        document.getElementById('browserWarning').classList.remove('hidden');
-        ui.btnConnect.disabled = true;
-        log('Error: Web Serial API not supported.');
-        return;
-    }
 
     try {
         const response = await fetch(CONFIG.infoUrl);
