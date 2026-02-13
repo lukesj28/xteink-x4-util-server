@@ -16,7 +16,6 @@ env/
 Thumbs.db
 
 # Project Specific
-data/
 input/*
 !input/.gitkeep
 output/*
