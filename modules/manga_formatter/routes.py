@@ -23,7 +23,7 @@ _sessions = {}
 @bp.route("/")
 def index():
     logger.info("Manga Formatter index page accessed")
-    return render_template("manga_formatter/index.html")
+    return render_template("manga_formatter/index.html", suwayomi_url=os.environ.get("SUWAYOMI_URL"))
 
 
 @bp.route("/browse", methods=["GET"])

@@ -45,8 +45,16 @@
 
             <!-- Directory Browser (shown in browse mode) -->
             <div class="form-group anim-card-pop delay-500" id="browseSection">
+                {% if suwayomi_url %}
+                <a href="{{ suwayomi_url }}" target="_blank" class="btn-primary" style="text-decoration: none; display: block; text-align: center; margin-bottom: 1rem; width: auto;" title="Add Manga">
+                    ➕ ADD MANGA TO LIBRARY
+                </a>
+                {% endif %}
                 <div class="browser-panel">
-                    <div class="browser-breadcrumb" id="breadcrumb"></div>
+                    <div class="browser-breadcrumb" id="breadcrumb" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span id="breadcrumbContent"></span>
+                        <button type="button" id="refreshBtn" title="Refresh" style="background: none; border: none; color: var(--secondary); font-size: 1.2rem; cursor: pointer; padding: 0 5px;">↻</button>
+                    </div>
                     <div class="browser-list" id="browserList">
                         <p class="browser-loading">Loading…</p>
                     </div>
@@ -167,6 +175,7 @@
         const reviewGrid = document.getElementById('reviewGrid');
         const recognizedSummary = document.getElementById('recognizedSummary');
         const continueBtn = document.getElementById('continueBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
 
         let sourceMode = 'browse';
         let selectedHostPath = null;
@@ -190,6 +199,12 @@
                 updateSubmitState();
             });
         });
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                loadBrowser(currentBrowsePath);
+            });
+        }
 
         // --- Directory Browser ---
         async function loadBrowser(path) {
@@ -265,7 +280,10 @@
         }
 
         function buildBreadcrumb(fullPath) {
-            breadcrumb.innerHTML = '';
+            const breadcrumbContent = document.getElementById('breadcrumbContent');
+            if (!breadcrumbContent) return; // Safety check
+            breadcrumbContent.innerHTML = '';
+            
             const base = '/mangas';
             const relative = fullPath.replace(base, '') || '';
             const parts = relative.split('/').filter(Boolean);
@@ -275,7 +293,7 @@
             root.className = 'crumb';
             root.textContent = 'mangas';
             root.addEventListener('click', () => loadBrowser(base));
-            breadcrumb.appendChild(root);
+            breadcrumbContent.appendChild(root);
 
             let accumulated = base;
             for (const part of parts) {
@@ -283,14 +301,14 @@
                 const sep = document.createElement('span');
                 sep.className = 'crumb-sep';
                 sep.textContent = ' / ';
-                breadcrumb.appendChild(sep);
+                breadcrumbContent.appendChild(sep);
 
                 const crumb = document.createElement('span');
                 crumb.className = 'crumb';
                 crumb.textContent = part;
                 const target = accumulated;
                 crumb.addEventListener('click', () => loadBrowser(target));
-                breadcrumb.appendChild(crumb);
+                breadcrumbContent.appendChild(crumb);
             }
         }
 

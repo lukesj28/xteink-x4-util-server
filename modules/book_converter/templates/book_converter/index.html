@@ -51,9 +51,17 @@
                         </div>
 
                         <!-- Browser Panel (Browse Mode) -->
-                        <div id="browserPanel" style="display:none;">
+                        <div id="browserPanel" style="display:none; flex-direction: column;">
+                            {% if readarr_url %}
+                            <a href="{{ readarr_url }}" target="_blank" class="btn-transmute" style="margin-bottom: 10px; text-decoration: none; text-align: center; font-size: 0.8rem; padding: 0.5rem;" title="Add Book">
+                                ➕ Add Book to Library
+                            </a>
+                            {% endif %}
                             <div class="browser-panel">
-                                <div class="browser-breadcrumb" id="breadcrumb"></div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed rgba(160, 130, 80, 0.2); margin-bottom: 6px; padding-bottom: 6px;">
+                                    <div class="browser-breadcrumb" id="breadcrumb" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;"></div>
+                                    <button type="button" class="icon-btn" id="refreshBtn" title="Refresh" style="background:none; border:none; cursor:pointer; font-size: 1rem; color: var(--ink-light); padding: 0 4px;">↻</button>
+                                </div>
                                 <div class="browser-list" id="browserList">
                                     <div class="browser-loading">Loading...</div>
                                 </div>
@@ -512,6 +520,14 @@
             }
         });
     });
+
+    // -- Refresh Button
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+             loadBrowser(currentPath);
+        });
+    }
 
     // -- Browser Logic
     async function loadBrowser(path) {

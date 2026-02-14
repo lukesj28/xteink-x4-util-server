@@ -27,7 +27,7 @@ os.makedirs(SESSIONS_DIR, exist_ok=True)
 @bp.route("/")
 def index():
     logger.info("Book Converter index page accessed")
-    return render_template("book_converter/index.html")
+    return render_template("book_converter/index.html", readarr_url=os.environ.get("READARR_URL"))
 
 
 def _format_size(size):

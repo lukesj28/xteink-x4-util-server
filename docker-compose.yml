@@ -6,6 +6,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - CALIBRE_IO_PATH=/calibre-io
+      - READARR_URL=
+      - SUWAYOMI_URL=
     volumes:
       - ./data/library:/library
       - ./data/tmp:/tmp
