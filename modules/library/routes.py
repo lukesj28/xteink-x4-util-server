@@ -19,12 +19,7 @@ def save_to_library(src_path, filename):
     """Save file to library with unique name."""
     os.makedirs(LIBRARY_DIR, exist_ok=True)
 
-    base, ext = os.path.splitext(filename)
     dest = os.path.join(LIBRARY_DIR, filename)
-    counter = 1
-    while os.path.exists(dest):
-        dest = os.path.join(LIBRARY_DIR, f"{base}_{counter}{ext}")
-        counter += 1
 
     shutil.copy2(src_path, dest)
     logger.info(f"Saved to library: {dest}")
@@ -82,12 +77,7 @@ def upload():
     os.makedirs(LIBRARY_DIR, exist_ok=True)
 
     filename = file.filename
-    base, ext = os.path.splitext(filename)
     dest = os.path.join(LIBRARY_DIR, filename)
-    counter = 1
-    while os.path.exists(dest):
-        dest = os.path.join(LIBRARY_DIR, f"{base}_{counter}{ext}")
-        counter += 1
 
     file.save(dest)
     logger.info(f"Uploaded to library: {dest}")

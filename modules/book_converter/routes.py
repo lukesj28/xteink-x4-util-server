@@ -35,33 +35,15 @@ def index():
     return render_template("book_converter/index.html")
 
 
-def _save_session_metadata(session_id, data):
-    """Save session metadata to a JSON file."""
-    session_dir = os.path.join(SESSIONS_DIR, session_id)
-    os.makedirs(session_dir, exist_ok=True)
-    meta_path = os.path.join(session_dir, "metadata.json")
-    with open(meta_path, "w") as f:
-        json.dump(data, f)
-    return session_dir
 
 
-def _load_session_metadata(session_id):
-    """Load session metadata from a JSON file."""
-    meta_path = os.path.join(SESSIONS_DIR, session_id, "metadata.json")
-    if os.path.exists(meta_path):
-        with open(meta_path, "r") as f:
-            return json.load(f)
-    return None
 
-
-def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id):
+def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_filename=None):
     """Generator that yields NDJSON progress for EPUB→XTC conversion."""
     try:
         yield json.dumps({"type": "progress", "message": "Parsing EPUB...", "current": 0, "total": 100}) + "\n"
 
         parsed = parse_epub(epub_path)
-        title = parsed["title"]
-        safe_title = "".join(c for c in title if c.isalnum() or c in " _-").strip() or "book"
 
         for event in render_book(parsed, settings):
             if event["type"] == "progress":
@@ -73,30 +55,31 @@ def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id):
 
                 yield json.dumps({"type": "progress", "message": "Building XTC file...", "current": 99, "total": 100}) + "\n"
 
-                # Define output path
-                out_filename = f"{safe_title}.xtc"
+                base = os.path.splitext(original_filename or os.path.basename(epub_path))[0]
+                out_filename = f"{base}.xtc"
                 out_path = os.path.join(work_dir, out_filename)
                 
                 size = (settings.get("target_width", 480), settings.get("target_height", 800))
                 build_book_xtc(pages, out_path, metadata, chapters, size)
 
                 try:
-                    save_to_library(out_path, out_filename)
+                    final_path = save_to_library(out_path, out_filename)
+                    final_filename = os.path.basename(final_path)
                 except Exception:
                     logger.exception("Failed to save XTC to library")
-
-                # Save session metadata to filesystem (shared across workers)
-                _save_session_metadata(session_id, {
-                    "file_path": out_path,
-                    "filename": out_filename,
-                    "work_dir": work_dir,
-                })
+                    final_filename = out_filename  # Fallback (though download will fail)
 
                 yield json.dumps({
                     "type": "done",
-                    "download_url": f"/book-converter/download/{session_id}",
-                    "filename": out_filename,
+                    "download_url": f"/library/download/{final_filename}",
+                    "filename": final_filename,
                 }) + "\n"
+
+                # Cleanup session immediately
+                try:
+                    shutil.rmtree(work_dir, ignore_errors=True)
+                except Exception:
+                    logger.warning(f"Failed to cleanup session {session_id}", exc_info=True)
 
     except Exception as e:
         logger.exception("Conversion error")
@@ -109,17 +92,25 @@ def convert():
     if not file or not file.filename:
         return jsonify({"error": "No file uploaded"}), 400
 
-    filename = file.filename.lower()
+    original_filename = file.filename
+    filename = original_filename.lower()
     output_format = request.form.get("output_format", "xtc").lower()
 
     settings = {
         "target_width": int(request.form.get("target_width", "480")),
         "target_height": int(request.form.get("target_height", "800")),
         "font_size": int(request.form.get("font_size", "28")),
-        "margin": int(request.form.get("margin", "20")),
+        "margin_top": int(request.form.get("margin_top", "30")),
+        "margin_bottom": int(request.form.get("margin_bottom", "20")),
+        "margin_left": int(request.form.get("margin_left", "20")),
+        "margin_right": int(request.form.get("margin_right", "20")),
         "line_height": float(request.form.get("line_height", "1.4")),
         "dithering": request.form.get("dithering", "true").lower() == "true",
         "contrast": float(request.form.get("contrast", "1.2")),
+        "text_align": request.form.get("text_align", "justify"),
+        "bold": request.form.get("bold", "false").lower() == "true",
+        "paragraph_indent": int(request.form.get("paragraph_indent", "0")),
+        "paragraph_spacing": float(request.form.get("paragraph_spacing", "0.5")),
     }
 
     # Session ID is critical for retrieval
@@ -142,28 +133,25 @@ def convert():
                 # PDF → EPUB via Calibre
                 try:
                     epub_path = convert_pdf_to_epub(input_path, CALIBRE_IO_PATH)
-                    epub_filename = os.path.basename(epub_path)
-                    
+                    epub_filename = os.path.splitext(original_filename)[0] + ".epub"
+
                     # Copy to work_dir for serving
                     local_epub = os.path.join(work_dir, epub_filename)
                     shutil.copy2(epub_path, local_epub)
 
                     try:
-                        save_to_library(local_epub, epub_filename)
+                        final_path = save_to_library(local_epub, epub_filename)
+                        final_filename = os.path.basename(final_path)
                     except Exception:
                         logger.exception("Failed to save EPUB to library")
+                        final_filename = epub_filename
 
-                    # Save metadata
-                    _save_session_metadata(session_id, {
-                        "file_path": local_epub,
-                        "filename": epub_filename,
-                        "work_dir": work_dir,
-                    })
+                    shutil.rmtree(work_dir, ignore_errors=True)
 
                     return jsonify({
                         "type": "done",
-                        "download_url": f"/book-converter/download/{session_id}",
-                        "filename": epub_filename,
+                        "download_url": f"/library/download/{final_filename}",
+                        "filename": final_filename,
                     })
                 except (TimeoutError, FileNotFoundError) as e:
                     # Clean up on error
@@ -176,12 +164,15 @@ def convert():
                     try:
                         yield json.dumps({"type": "progress", "message": "Converting PDF to EPUB via Calibre...", "current": 0, "total": 100}) + "\n"
                         epub_path = convert_pdf_to_epub(input_path, CALIBRE_IO_PATH)
-                        yield from _stream_epub_to_xtc(epub_path, work_dir, settings, session_id)
+                        yield from _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_filename)
                     except (TimeoutError, FileNotFoundError) as e:
                         yield json.dumps({"type": "error", "message": str(e)}) + "\n"
                     except Exception as e:
                         logger.exception("PDF→XTC error")
                         yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+                    finally:
+                        if os.path.exists(work_dir):
+                             shutil.rmtree(work_dir, ignore_errors=True)
 
                 return Response(stream_pdf_to_xtc(), mimetype="application/x-ndjson")
 
@@ -189,7 +180,7 @@ def convert():
             if output_format == "xtc":
                 # EPUB → XTC
                 return Response(
-                    _stream_epub_to_xtc(input_path, work_dir, settings, session_id),
+                    _stream_epub_to_xtc(input_path, work_dir, settings, session_id, original_filename),
                     mimetype="application/x-ndjson",
                 )
             else:
@@ -205,18 +196,4 @@ def convert():
         return jsonify({"error": str(e)}), 500
 
 
-@bp.route("/download/<session_id>", methods=["GET"])
-def download(session_id):
-    session = _load_session_metadata(session_id)
-    if not session or "file_path" not in session:
-        return jsonify({"error": "File not found or expired"}), 404
 
-    # Verify existance
-    if not os.path.exists(session["file_path"]):
-        return jsonify({"error": "File has been deleted"}), 404
-
-    return send_file(
-        session["file_path"],
-        as_attachment=True,
-        download_name=session["filename"],
-    )

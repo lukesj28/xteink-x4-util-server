@@ -11,7 +11,7 @@
 <div class="ambient-light" id="ambientLight"></div>
 
 <div class="converter-wrap">
-    
+
     <div class="converter-header">
         <h1 class="converter-title" data-text="THE ARCANUM">THE ARCANUM</h1>
         <div class="converter-subtitle">Book Converter</div>
@@ -22,20 +22,23 @@
             <div class="grimoire">
                 <div class="grimoire-pages">
                     <div class="grimoire-spine-stitching"></div>
-                    
-                    <!-- LEFT PAGE: OFFERING (INPUT) -->
+
+                    <!-- LEFT PAGE: CONTROLS -->
                     <div class="page-left">
                         <div class="page-corner-decoration corner-tl"></div>
                         <div class="page-corner-decoration corner-bl"></div>
-                        
+
                         <div class="page-header">
-                            Source File
+                            Controls
                         </div>
-                        
-                        <div class="upload-zone" id="dropZone">
-                            <div class="upload-icon">📜</div>
-                            <div class="upload-text">Upload File</div>
-                            <div class="upload-hint">EPUB or PDF</div>
+
+                        <!-- Compact file upload -->
+                        <div class="upload-row" id="dropZone">
+                            <div class="upload-row-icon">📜</div>
+                            <div class="upload-row-text">
+                                <span class="upload-row-label">Source File</span>
+                                <span class="upload-row-hint">EPUB or PDF</span>
+                            </div>
                             <input type="file" id="fileInput" name="file" accept=".epub,.pdf">
                         </div>
 
@@ -45,26 +48,10 @@
                                 <div class="file-name" id="fileName"></div>
                                 <div class="file-size" id="fileSize"></div>
                             </div>
-                            <button type="button" class="btn-remove" id="fileRemove" title="Remove File">×</button>
+                            <button type="button" class="btn-remove" id="fileRemove" title="Remove File">&times;</button>
                         </div>
 
-                        <!-- Feedback Area -->
-                        <div class="feedback-box box-error" id="errorBox"></div>
-                        <div class="feedback-box box-success" id="successBox">
-                            <strong>Success</strong><br>
-                            <span>The document has been converted.</span>
-                        </div>
-                    </div>
-
-                    <!-- RIGHT PAGE: RITUAL (CONTROLS) -->
-                    <div class="page-right">
-                        <div class="page-corner-decoration corner-tr"></div>
-                        <div class="page-corner-decoration corner-br"></div>
-
-                        <div class="page-header">
-                            Settings
-                        </div>
-
+                        <!-- Format toggle -->
                         <div class="form-group">
                             <span class="label-fancy">Final Format</span>
                             <div class="format-toggle">
@@ -74,25 +61,95 @@
                             <input type="hidden" id="outputFormat" name="output_format" value="xtc">
                         </div>
 
+                        <!-- Settings grid -->
                         <div id="settingsPanel">
-                            <div class="form-group">
-                                <label class="label-fancy" for="target_width">Target Width (px)</label>
-                                <input type="number" id="target_width" name="target_width" value="480" min="100" max="2000">
+                            <!-- Section: Page -->
+                            <div class="settings-section-label">Page</div>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label class="label-fancy" for="target_width">Width (px)</label>
+                                    <input type="number" id="target_width" name="target_width" value="480" min="100" max="2000">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="target_height">Height (px)</label>
+                                    <input type="number" id="target_height" name="target_height" value="800" min="100" max="2000">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="contrast">Contrast: <span id="contrastVal">1.2</span></label>
+                                    <input type="range" id="contrast" name="contrast" min="0.5" max="3.0" step="0.1" value="1.2">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="label-fancy" for="font_size">Font Size (pt)</label>
-                                <input type="number" id="font_size" name="font_size" value="28" min="8" max="72">
+
+                            <!-- Section: Margins -->
+                            <div class="settings-section-label">Margins (px)</div>
+                            <div class="settings-grid settings-grid-4">
+                                <div class="form-group">
+                                    <label class="label-fancy" for="margin_top">Top</label>
+                                    <input type="number" id="margin_top" name="margin_top" value="20" min="0" max="200">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="margin_bottom">Bottom</label>
+                                    <input type="number" id="margin_bottom" name="margin_bottom" value="20" min="0" max="200">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="margin_left">Left</label>
+                                    <input type="number" id="margin_left" name="margin_left" value="20" min="0" max="200">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="margin_right">Right</label>
+                                    <input type="number" id="margin_right" name="margin_right" value="20" min="0" max="200">
+                                </div>
                             </div>
+
+                            <!-- Section: Typography -->
+                            <div class="settings-section-label">Typography</div>
+                            <div class="settings-grid">
+                                <div class="form-group">
+                                    <label class="label-fancy" for="font_size">Font Size (pt)</label>
+                                    <input type="number" id="font_size" name="font_size" value="28" min="8" max="72">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="line_height">Line Height</label>
+                                    <input type="number" id="line_height" name="line_height" value="1.4" min="0.8" max="3.0" step="0.1">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="paragraph_indent">Indent (px)</label>
+                                    <input type="number" id="paragraph_indent" name="paragraph_indent" value="0" min="0" max="100">
+                                </div>
+                                <div class="form-group">
+                                    <label class="label-fancy" for="paragraph_spacing">Para. Spacing (em)</label>
+                                    <input type="number" id="paragraph_spacing" name="paragraph_spacing" value="0.5" min="0" max="3.0" step="0.1">
+                                </div>
+                            </div>
+
                             <div class="form-group">
-                                <label class="label-fancy" for="contrast">Contrast: <span id="contrastVal">1.2</span></label>
-                                <input type="range" id="contrast" name="contrast" min="0.5" max="3.0" step="0.1" value="1.2">
+                                <label class="label-fancy" for="text_align">Text Align</label>
+                                <div class="format-toggle align-toggle">
+                                    <button type="button" class="toggle-btn" data-align="left">Left</button>
+                                    <button type="button" class="toggle-btn active" data-align="justify">Justify</button>
+                                    <button type="button" class="toggle-btn" data-align="center">Center</button>
+                                </div>
+                                <input type="hidden" id="textAlign" name="text_align" value="justify">
+                            </div>
+
+                            <!-- Toggle row -->
+                            <div class="toggle-row">
+                                <div class="toggle-switch-row">
+                                    <span class="toggle-switch-label">Dithering</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="dithering" name="dithering" value="true" checked>
+                                        <span class="toggle-switch-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="toggle-switch-row">
+                                    <span class="toggle-switch-label">Bold</span>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="bold" name="bold" value="true">
+                                        <span class="toggle-switch-slider"></span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
-
-                        <!-- Hidden inputs for legacy/defaults -->
-                        <input type="hidden" name="dithering" value="true">
-                        <input type="hidden" name="margin" value="20">
-                        <input type="hidden" name="line_height" value="1.4">
 
                         <button type="submit" class="btn-transmute" id="submitBtn" disabled>
                             Convert
@@ -104,6 +161,39 @@
                                 <div class="ink-bar" id="progressFill"></div>
                             </div>
                             <div class="status-text" id="statusText">Converting...</div>
+                        </div>
+
+                        <!-- Feedback Area -->
+                        <div class="feedback-box box-error" id="errorBox"></div>
+                        <div class="feedback-box box-success" id="successBox">
+                            <strong>Success</strong><br>
+                            <span>The document has been converted.</span>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PAGE: PREVIEW -->
+                    <div class="page-right">
+                        <div class="page-corner-decoration corner-tr"></div>
+                        <div class="page-corner-decoration corner-br"></div>
+
+                        <div class="page-header">
+                            Preview
+                        </div>
+
+                        <div class="preview-container">
+                            <div class="preview-screen" id="previewScreen">
+                                <div class="preview-content" id="previewContent">
+                                    <h3 class="preview-title">The Raven</h3>
+                                    <p class="preview-author">Edgar Allan Poe</p>
+                                    <p class="preview-text">Once upon a midnight dreary, while I pondered, weak and weary, over many a quaint and curious volume of forgotten lore&mdash;while I nodded, nearly napping, suddenly there came a tapping, as of some one gently rapping, rapping at my chamber door.</p>
+                                    <p class="preview-text">&ldquo;'Tis some visitor,&rdquo; I muttered, &ldquo;tapping at my chamber door&mdash;only this and nothing more.&rdquo;</p>
+                                    <p class="preview-text">Ah, distinctly I remember it was in the bleak December; and each separate dying ember wrought its ghost upon the floor. Eagerly I wished the morrow;&mdash;vainly I had sought to borrow from my books surcease of sorrow&mdash;sorrow for the lost Lenore.</p>
+                                </div>
+                            </div>
+                            <div class="preview-info">
+                                <span class="preview-badge" id="previewDims">480 &times; 800</span>
+                                <span class="preview-badge">1-bit Mono</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -133,12 +223,35 @@
     const contrastSlider = document.getElementById('contrast');
     const contrastVal = document.getElementById('contrastVal');
     const ambientLight = document.getElementById('ambientLight');
-    
+
     // Format Toggles
     const outputFormat = document.getElementById('outputFormat');
     const epubFormatBtn = document.getElementById('epubFormatBtn');
-    const formatBtns = document.querySelectorAll('.toggle-btn');
+    const formatBtns = document.querySelectorAll('.format-toggle:not(.align-toggle) .toggle-btn');
     const settingsPanel = document.getElementById('settingsPanel');
+
+    // Align Toggles
+    const alignBtns = document.querySelectorAll('.align-toggle .toggle-btn');
+    const textAlignInput = document.getElementById('textAlign');
+
+    // Preview elements
+    const previewScreen = document.getElementById('previewScreen');
+    const previewContent = document.getElementById('previewContent');
+    const previewDims = document.getElementById('previewDims');
+
+    // Setting inputs
+    const inputWidth = document.getElementById('target_width');
+    const inputHeight = document.getElementById('target_height');
+    const inputFontSize = document.getElementById('font_size');
+    const inputMarginTop = document.getElementById('margin_top');
+    const inputMarginBottom = document.getElementById('margin_bottom');
+    const inputMarginLeft = document.getElementById('margin_left');
+    const inputMarginRight = document.getElementById('margin_right');
+    const inputLineHeight = document.getElementById('line_height');
+    const inputDithering = document.getElementById('dithering');
+    const inputBold = document.getElementById('bold');
+    const inputIndent = document.getElementById('paragraph_indent');
+    const inputSpacing = document.getElementById('paragraph_spacing');
 
     let selectedFile = null;
 
@@ -153,6 +266,7 @@
     // -- Contrast slider
     contrastSlider.addEventListener('input', () => {
         contrastVal.textContent = contrastSlider.value;
+        updatePreview();
     });
 
     // -- Format Selection
@@ -163,17 +277,89 @@
             btn.classList.add('active');
             const fmt = btn.dataset.format;
             outputFormat.value = fmt;
-            
-            // Toggle visibility of XTC-only settings
+
             if (fmt === 'epub') {
                 settingsPanel.style.opacity = '0.5';
-                settingsPanel.style.pointerEvents = 'none'; // Disable inputs visually
+                settingsPanel.style.pointerEvents = 'none';
             } else {
                 settingsPanel.style.opacity = '1';
                 settingsPanel.style.pointerEvents = 'auto';
             }
         });
     });
+
+    // -- Alignment Selection
+    alignBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            alignBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            textAlignInput.value = btn.dataset.align;
+            updatePreview();
+        });
+    });
+
+    // -- Preview update
+    function updatePreview() {
+        const w = parseInt(inputWidth.value) || 480;
+        const h = parseInt(inputHeight.value) || 800;
+        const fs = parseInt(inputFontSize.value) || 28;
+        const mt = parseInt(inputMarginTop.value) || 30;
+        const mb = parseInt(inputMarginBottom.value) || 20;
+        const ml = parseInt(inputMarginLeft.value) || 20;
+        const mr = parseInt(inputMarginRight.value) || 20;
+        const lh = parseFloat(inputLineHeight.value) || 1.4;
+        const ct = parseFloat(contrastSlider.value) || 1.2;
+        const dither = inputDithering.checked;
+        const bold = inputBold.checked;
+        const align = textAlignInput.value;
+        const indent = parseInt(inputIndent.value) || 0;
+        const spacing = parseFloat(inputSpacing.value) || 0;
+
+        // Update screen aspect ratio
+        const aspect = h / w;
+        previewScreen.style.setProperty('--screen-aspect', aspect);
+
+        // Compute scale from device pixels to preview pixels
+        const previewW = previewScreen.offsetWidth;
+        const scale = previewW / w;
+
+        // Apply scaled settings to content
+        previewContent.style.fontSize = (fs * scale) + 'px';
+        previewContent.style.padding = `${mt * scale}px ${mr * scale}px ${mb * scale}px ${ml * scale}px`;
+        previewContent.style.lineHeight = lh;
+        previewContent.style.textAlign = align;
+        previewContent.style.fontWeight = bold ? 'bold' : 'normal';
+
+        // Apply paragraph indent & spacing to .preview-text elements
+        const textEls = previewContent.querySelectorAll('.preview-text');
+        textEls.forEach(el => {
+            el.style.textIndent = (indent * scale) + 'px';
+            el.style.marginBottom = spacing + 'em';
+        });
+
+        // Contrast via CSS filter
+        previewContent.style.filter = `contrast(${ct})`;
+
+        // Dithering simulation
+        if (dither) {
+            previewScreen.classList.add('dithered');
+        } else {
+            previewScreen.classList.remove('dithered');
+        }
+
+        // Update dimension label
+        previewDims.innerHTML = w + ' &times; ' + h;
+    }
+
+    // Bind all setting inputs to update preview
+    [inputWidth, inputHeight, inputFontSize, inputMarginTop, inputMarginBottom, inputMarginLeft, inputMarginRight, inputLineHeight, inputIndent, inputSpacing].forEach(el => {
+        el.addEventListener('input', updatePreview);
+    });
+    inputDithering.addEventListener('change', updatePreview);
+    inputBold.addEventListener('change', updatePreview);
+
+    // Initial preview
+    updatePreview();
 
     // -- Drag & Drop
     ['dragenter', 'dragover'].forEach(evt => {
@@ -207,7 +393,7 @@
         e.stopPropagation();
         clearFile();
     });
-    
+
     dropZone.addEventListener('click', (e) => {
         if (e.target !== fileInput && e.target !== fileRemove) {
             fileInput.click();
@@ -223,12 +409,11 @@
 
         selectedFile = file;
 
-        // Update UI
         fileName.textContent = file.name;
         fileSize.textContent = formatSize(file.size);
         fileIcon.textContent = ext.toUpperCase();
         fileInfo.classList.add('visible');
-        
+
         if (ext === 'pdf') {
             epubFormatBtn.disabled = false;
         } else {
@@ -277,6 +462,14 @@
         statusText.textContent = 'Summoning the energies...';
 
         const formData = new FormData(form);
+
+        // Handle checkboxes (unchecked = not sent by FormData)
+        if (!inputDithering.checked) {
+            formData.set('dithering', 'false');
+        }
+        if (!inputBold.checked) {
+            formData.set('bold', 'false');
+        }
 
         try {
             const resp = await fetch('/book-converter/convert', {

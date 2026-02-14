@@ -144,6 +144,9 @@ async function connect() {
         }
 
         log('Requesting port...');
+        if (!navigator.serial) {
+            throw new Error('Web Serial API not found. You must use HTTPS or localhost (Secure Context).');
+        }
         port = await navigator.serial.requestPort({ filters: CONFIG.portFilters });
         
         // Port management

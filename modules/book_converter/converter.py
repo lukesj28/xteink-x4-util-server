@@ -27,10 +27,17 @@ DEFAULT_SETTINGS = {
     "target_width": 480,
     "target_height": 800,
     "font_size": 28,
-    "margin": 20,
+    "margin_top": 30,
+    "margin_bottom": 20,
+    "margin_left": 20,
+    "margin_right": 20,
     "line_height": 1.4,
     "dithering": True,
     "contrast": 1.2,
+    "text_align": "justify",
+    "bold": False,
+    "paragraph_indent": 0,
+    "paragraph_spacing": 0.5,
 }
 
 
@@ -39,10 +46,14 @@ def _merge_settings(raw):
     if raw:
         for key in DEFAULT_SETTINGS:
             if key in raw:
-                if key == "dithering":
+                if key in ("dithering", "bold"):
                     s[key] = bool(raw[key])
-                elif key in ("target_width", "target_height", "font_size", "margin"):
+                elif key in ("target_width", "target_height", "font_size",
+                             "margin_top", "margin_bottom", "margin_left", "margin_right",
+                             "paragraph_indent"):
                     s[key] = int(raw[key])
+                elif key == "text_align":
+                    s[key] = str(raw[key])
                 else:
                     s[key] = float(raw[key])
     return s
@@ -201,24 +212,35 @@ def render_book(parsed, settings=None):
     w = s["target_width"]
     h = s["target_height"]
     font_size = s["font_size"]
-    margin = s["margin"]
+    margin_top = s["margin_top"]
+    margin_bottom = s["margin_bottom"]
+    margin_left = s["margin_left"]
+    margin_right = s["margin_right"]
     line_height = s["line_height"]
     dithering = s["dithering"]
     contrast = s["contrast"]
+    text_align = s["text_align"]
+    bold = s["bold"]
+    paragraph_indent = s["paragraph_indent"]
+    paragraph_spacing = s["paragraph_spacing"]
 
     epub_css = parsed["css"]
     images = parsed["images"]
     chapters_data = parsed["chapters"]
 
+    font_weight = "bold" if bold else "normal"
+
     custom_css = f"""
-        @page {{ size: {w}pt {h}pt; margin: 0; }}
+        @page {{ size: {w}pt {h}pt; margin: {margin_top}px {margin_right}px {margin_bottom}px {margin_left}px; }}
         body {{
             font-family: serif !important;
             font-size: {font_size}pt !important;
+            font-weight: {font_weight} !important;
             line-height: {line_height} !important;
+            text-align: {text_align} !important;
             color: black !important;
             margin: 0 !important;
-            padding: {margin}px !important;
+            padding: 0 !important;
             background-color: white !important;
             width: 100% !important;
             height: 100% !important;
@@ -227,11 +249,15 @@ def render_book(parsed, settings=None):
         p, div, li, blockquote, dd, dt {{
             font-family: inherit !important;
             font-size: inherit !important;
+            font-weight: inherit !important;
             line-height: inherit !important;
+            text-align: inherit !important;
             color: inherit !important;
+            text-indent: {paragraph_indent}px !important;
+            margin-bottom: {paragraph_spacing}em !important;
         }}
         img {{ max-width: 95% !important; height: auto !important; display: block; margin: 20px auto !important; }}
-        h1, h2, h3 {{ text-align: center !important; margin-top: 1em; }}
+        h1, h2, h3 {{ text-align: center !important; margin-top: 1em; font-weight: bold !important; }}
     """
 
     total_chapters = len(chapters_data)
