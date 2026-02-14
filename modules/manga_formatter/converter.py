@@ -1,9 +1,3 @@
-"""
-CBZ → XTC conversion engine.
-Extracts images from CBZ files, processes them for main (full vertical)
-and zoom (overlapping thirds, rotated), then writes XTC files.
-"""
-
 import os
 import re
 import zipfile
@@ -15,7 +9,6 @@ from PIL import Image, ImageOps
 from modules.manga_formatter.xtc import build_xtc, build_single_page_xtc
 
 
-# ---------- defaults ----------
 DEFAULT_SETTINGS = {
     "dithering": True,
     "contrast": 4,
@@ -25,7 +18,6 @@ DEFAULT_SETTINGS = {
 
 
 def _parse_settings(raw):
-    """Merge user-supplied settings dict with defaults."""
     s = dict(DEFAULT_SETTINGS)
     if raw:
         if "dithering" in raw:
@@ -38,19 +30,12 @@ def _parse_settings(raw):
             s["target_height"] = int(raw["target_height"])
     return s
 
-
-# ------------------------------------------------------------------
-# Chapter number extraction
-# ------------------------------------------------------------------
-
-# Patterns that suggest "chapter"
 _CH_PATTERNS = [
     re.compile(r'chapter\s*[._-]?\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
     re.compile(r'chp\s*[._-]?\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
     re.compile(r'ch\s*[._-]?\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
 ]
 
-# Patterns that suggest "volume / book" (noise to strip)
 _VOL_NOISE = re.compile(
     r'(?:vol(?:ume)?|book|bk)\s*[._-]?\s*\d+(?:\.\d+)?',
     re.IGNORECASE,
@@ -58,20 +43,8 @@ _VOL_NOISE = re.compile(
 
 
 def extract_chapter_number(filename):
-    """
-    Extract chapter number from a filename.
-
-    Priority:
-      1. Numbers following chapter/chp/ch keywords
-      2. Remaining standalone numbers after stripping vol/volume/book/bk noise
-
-    For decimal chapters (e.g. 12.5), returns the float so the caller
-    can decide whether to use the integer part.
-    Returns (int_chapter, is_decimal) or (None, False).
-    """
     base = os.path.splitext(os.path.basename(filename))[0]
 
-    # 1) Look for explicit chapter keywords
     for pat in _CH_PATTERNS:
         m = pat.search(base)
         if m:
@@ -80,13 +53,9 @@ def extract_chapter_number(filename):
                 return int(num_str.split('.')[0]), True
             return int(num_str), False
 
-    # 2) Strip volume/book noise and look for remaining numbers
     cleaned = _VOL_NOISE.sub('', base)
-    # Find all standalone numbers (not part of words like resolution)
     numbers = re.findall(r'(?<!\d)(\d+(?:\.\d+)?)(?!\d)', cleaned)
     if numbers:
-        # Take the last number found (often the chapter in patterns like
-        # "Manga Name 005" or "Title - 012")
         num_str = numbers[-1]
         if '.' in num_str:
             return int(num_str.split('.')[0]), True
@@ -96,13 +65,6 @@ def extract_chapter_number(filename):
 
 
 def classify_cbz_files(cbz_paths):
-    """
-    Classify a list of CBZ file paths into recognized and unrecognized.
-
-    Returns:
-        recognized: dict {chapter_num (int): cbz_path}
-        unrecognized: list of cbz_paths that couldn't be auto-assigned
-    """
     recognized = {}
     unrecognized = []
 
@@ -111,24 +73,15 @@ def classify_cbz_files(cbz_paths):
         if ch_num is None:
             unrecognized.append(path)
         elif is_decimal and ch_num in recognized:
-            # Decimal chapter and integer chapter already claimed this slot
-            # Skip — don't overwrite
             continue
         elif ch_num in recognized:
-            # Duplicate chapter number — can't auto-resolve
             unrecognized.append(path)
         else:
             recognized[ch_num] = path
 
     return recognized, unrecognized
 
-
-# ------------------------------------------------------------------
-# Image helpers
-# ------------------------------------------------------------------
-
 def _apply_contrast(img, level):
-    """Apply contrast boost."""
     if level == 0:
         return img
     black_cutoff = 3 * level
@@ -145,7 +98,6 @@ def _to_grayscale(img):
 
 
 def _resize_and_pad(img, tw, th, dithering=True):
-    """Resize to fit target, apply optional dithering, center on padded canvas."""
     iw, ih = img.size
     scale = min(tw / iw, th / ih)
     nw, nh = int(iw * scale), int(ih * scale)
@@ -159,29 +111,13 @@ def _resize_and_pad(img, tw, th, dithering=True):
     canvas.paste(resized, ((tw - nw) // 2, (th - nh) // 2))
     return canvas
 
-
-# ------------------------------------------------------------------
-# Main page processing (full vertical, no rotation)
-# ------------------------------------------------------------------
-
 def _process_main_page(img, settings):
-    """Return a single PIL Image ready for XTC – full page, upright."""
     img = _to_grayscale(img)
     img = _apply_contrast(img, settings["contrast"])
     return _resize_and_pad(img, settings["target_width"], settings["target_height"],
                            dithering=settings["dithering"])
 
-
-# ------------------------------------------------------------------
-# Zoom page processing (overlapping thirds, rotated 90° CW)
-# ------------------------------------------------------------------
-
 def _process_zoom_page(img, settings):
-    """
-    Split a vertical page into 3 overlapping horizontal thirds,
-    rotate each 90° CW, and resize to target.
-    Returns list of 3 PIL Images.
-    """
     img = _to_grayscale(img)
     img = _apply_contrast(img, settings["contrast"])
 
@@ -189,7 +125,6 @@ def _process_zoom_page(img, settings):
     th = settings["target_height"]
     width, height = img.size
 
-    # ---- overlapping-thirds math ----
     desired_segments = 3
     established_scale = th * 1.0 / width
     overlapping_height = tw / established_scale
@@ -220,13 +155,7 @@ def _process_zoom_page(img, settings):
 
     return segments
 
-
-# ------------------------------------------------------------------
-# CBZ extraction
-# ------------------------------------------------------------------
-
 def _extract_images(cbz_path):
-    """Extract and return sorted list of PIL Images from a CBZ."""
     images = []
     with zipfile.ZipFile(cbz_path, "r") as zf:
         names = zf.namelist()
@@ -245,7 +174,6 @@ def _extract_images(cbz_path):
 
 
 def get_cbz_preview(cbz_path, max_size=(300, 500)):
-    """Extract the first page of a CBZ and return as JPEG bytes."""
     images = _extract_images(cbz_path)
     if not images:
         return None
@@ -257,18 +185,7 @@ def get_cbz_preview(cbz_path, max_size=(300, 500)):
     img.save(buf, format="JPEG", quality=80)
     return buf.getvalue()
 
-
-# ------------------------------------------------------------------
-# Public API
-# ------------------------------------------------------------------
-
 def convert_chapter(cbz_path, ch_num, root, settings):
-    """
-    Convert a single CBZ file into the structured XTC output for one chapter.
-
-    root: Path to the manga output directory (e.g. output/MangaTitle)
-    ch_num: integer chapter number
-    """
     s = _parse_settings(settings)
     force_size = (s["target_width"], s["target_height"])
     ch_label = f"{ch_num:04d}"
@@ -279,11 +196,9 @@ def convert_chapter(cbz_path, ch_num, root, settings):
 
     images = _extract_images(cbz_path)
 
-    # ---- main: one multi-page XTC ----
     main_pages = [_process_main_page(img, s) for img in images]
     build_xtc(main_pages, str(ch_dir / f"main_{ch_label}.xtc"), force_size)
 
-    # ---- zoom: per-page, 3 splits each ----
     for page_idx, img in enumerate(images, start=1):
         splits = _process_zoom_page(img, s)
         fname = f"{ch_label}_{page_idx}.xtc"
@@ -291,16 +206,6 @@ def convert_chapter(cbz_path, ch_num, root, settings):
 
 
 def convert_chapters(chapter_map, output_dir, manga_title, settings=None):
-    """
-    Convert a mapping of {chapter_num: cbz_path} into structured XTC output.
-    Yields progress dictionaries:
-        {
-            "current": int,
-            "total": int,
-            "message": str,
-            "filename": str
-        }
-    """
     root = Path(output_dir) / manga_title
     root.mkdir(parents=True, exist_ok=True)
 
@@ -316,7 +221,6 @@ def convert_chapters(chapter_map, output_dir, manga_title, settings=None):
 
         convert_chapter(cbz_path, ch_num, root, settings)
 
-    # Yield final completion for the loop
     yield {
         "current": total,
         "total": total,

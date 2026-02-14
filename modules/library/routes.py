@@ -1,7 +1,3 @@
-"""
-Library module routes.
-"""
-
 import os
 import shutil
 import logging
@@ -16,7 +12,6 @@ LIBRARY_DIR = "/library"
 
 
 def save_to_library(src_path, filename):
-    """Save file to library with unique name."""
     os.makedirs(LIBRARY_DIR, exist_ok=True)
 
     dest = os.path.join(LIBRARY_DIR, filename)
@@ -34,7 +29,6 @@ def index():
 
 @bp.route("/files", methods=["GET"])
 def list_files():
-    """List library files."""
     os.makedirs(LIBRARY_DIR, exist_ok=True)
 
     files = []
@@ -55,12 +49,10 @@ def list_files():
 
 @bp.route("/download/<filename>", methods=["GET"])
 def download(filename):
-    """Download file."""
     path = os.path.join(LIBRARY_DIR, filename)
     if not os.path.isfile(path):
         return jsonify({"error": "File not found"}), 404
 
-    # Prevent path traversal
     if os.path.abspath(path) != os.path.normpath(path):
         return jsonify({"error": "Invalid filename"}), 400
 
@@ -69,7 +61,6 @@ def download(filename):
 
 @bp.route("/upload", methods=["POST"])
 def upload():
-    """Handle file upload."""
     file = request.files.get("file")
     if not file or not file.filename:
         return jsonify({"error": "No file provided"}), 400
@@ -86,7 +77,6 @@ def upload():
 
 @bp.route("/delete/<filename>", methods=["DELETE"])
 def delete(filename):
-    """Delete file."""
     path = os.path.join(LIBRARY_DIR, filename)
 
     if os.path.abspath(path) != os.path.normpath(path):

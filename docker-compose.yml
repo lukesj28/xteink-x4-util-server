@@ -11,6 +11,7 @@ services:
       - ./data/tmp:/tmp
       - ./data/calibre-io:/calibre-io
       - ./data/mangas:/mangas:ro
+      - ./data/books:/books:ro
       - ./data/firmware:/firmware:ro
     restart: unless-stopped
 

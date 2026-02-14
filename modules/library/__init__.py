@@ -7,4 +7,4 @@ bp = Blueprint(
     static_folder='static',
 )
 
-from modules.library import routes  # noqa: E402, F401
+from modules.library import routes

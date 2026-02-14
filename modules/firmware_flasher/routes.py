@@ -1,8 +1,3 @@
-"""
-Firmware Flasher — Flask routes.
-Serves the flasher page, firmware binary, and firmware metadata.
-"""
-
 import os
 import logging
 
@@ -23,7 +18,6 @@ def index():
 
 @bp.route("/firmware")
 def firmware():
-    """Serve the firmware binary file."""
     fw_path = os.path.join(FIRMWARE_DIR, "firmware.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "firmware.bin not found"}), 404
@@ -31,7 +25,6 @@ def firmware():
 
 @bp.route("/firmware/bootloader")
 def bootloader():
-    """Serve the bootloader binary file."""
     fw_path = os.path.join(FIRMWARE_DIR, "bootloader.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "bootloader.bin not found"}), 404
@@ -39,7 +32,6 @@ def bootloader():
 
 @bp.route("/firmware/partitions")
 def partitions():
-    """Serve the partitions binary file."""
     fw_path = os.path.join(FIRMWARE_DIR, "partitions.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "partitions.bin not found"}), 404
@@ -47,7 +39,6 @@ def partitions():
 
 @bp.route("/firmware/boot_app0")
 def boot_app0():
-    """Serve the boot_app0 binary file."""
     fw_path = os.path.join(FIRMWARE_DIR, "boot_app0.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "boot_app0.bin not found"}), 404
@@ -55,7 +46,6 @@ def boot_app0():
 
 @bp.route("/firmware/info")
 def firmware_info():
-    """Return firmware metadata as JSON."""
     fw_path = os.path.join(FIRMWARE_DIR, "firmware.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "firmware.bin not found"}), 404
@@ -71,7 +61,6 @@ def firmware_info():
 
 @bp.route("/firmware/manifest.json")
 def manifest():
-    """Return standard ESP Web Tools manifest."""
     fw_path = os.path.join(FIRMWARE_DIR, "firmware.bin")
     if not os.path.isfile(fw_path):
         return jsonify({"error": "firmware.bin not found"}), 404

@@ -1,8 +1,3 @@
-"""
-Manga Formatter — Flask routes.
-Handles CBZ upload/browse, conversion streaming, and zip download.
-"""
-
 import os
 import shutil
 import tempfile
@@ -22,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 BROWSE_ROOT = "/mangas"
 
-# In-memory session store: session_id -> session data dict
 _sessions = {}
 
 
@@ -34,7 +28,6 @@ def index():
 
 @bp.route("/browse", methods=["GET"])
 def browse_directory():
-    """List directories and files in BROWSE_ROOT."""
     req_path = request.args.get("path", BROWSE_ROOT)
     logger.info(f"Browse request for path: {req_path}")
 
@@ -85,7 +78,6 @@ def browse_directory():
 
 @bp.route("/preview/<session_id>/<filename>")
 def preview_image(session_id, filename):
-    """Serve the first image from a CBZ file for preview."""
     session = _sessions.get(session_id)
     if not session or filename not in session.get("unrecognized", {}):
         return "Not found", 404
@@ -109,7 +101,6 @@ def preview_image(session_id, filename):
 
 @bp.route("/download/<session_id>", methods=["GET"])
 def download_zip(session_id):
-    """Serve the generated zip file for a session."""
     session = _sessions.get(session_id)
     if not session or "zip_path" not in session:
         return jsonify({"error": "File not found or expired"}), 404
@@ -123,7 +114,6 @@ def download_zip(session_id):
 
 
 def _stream_conversion(chapter_map, work_dir, output_base, manga_title, settings, session_id):
-    """Generator that yields NDJSON progress updates."""
     try:
         converter_gen = convert_chapters(chapter_map, output_base, manga_title, settings)
         root_out = None
@@ -284,7 +274,6 @@ def convert_continue():
 
 
 def _zip_directory(source_dir, zip_path, root_name):
-    """Create a zip with root_name as the top-level folder."""
     source = Path(source_dir)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for file_path in sorted(source.rglob("*")):

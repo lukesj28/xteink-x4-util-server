@@ -1,8 +1,3 @@
-"""
-Book Converter — Flask routes.
-Handles EPUB/PDF upload, conversion streaming, and file download.
-"""
-
 import os
 import json
 import uuid
@@ -24,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 CALIBRE_IO_PATH = os.environ.get("CALIBRE_IO_PATH", "/calibre-io")
 SESSIONS_DIR = os.path.join(tempfile.gettempdir(), "x4_book_sessions")
+BROWSE_ROOT = "/books"
 
-# Ensure sessions directory exists
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
 
@@ -35,11 +30,70 @@ def index():
     return render_template("book_converter/index.html")
 
 
+def _format_size(size):
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+@bp.route("/browse", methods=["GET"])
+def browse_directory():
+    req_path = request.args.get("path", BROWSE_ROOT)
+    logger.info(f"Browse request for path: {req_path}")
+
+    try:
+        abs_root = os.path.abspath(BROWSE_ROOT)
+        abs_req = os.path.abspath(req_path)
+
+        logger.debug(f"Resolved browser paths - Root: {abs_root}, Requested: {abs_req}")
+
+        if not abs_req.startswith(abs_root):
+            logger.warning(f"Access denied: {abs_req} is outside {abs_root}")
+            return jsonify({"error": "Access denied"}), 403
+
+        if not os.path.exists(abs_req):
+            logger.error(f"Directory not found: {abs_req}")
+            if abs_req == abs_root:
+                logger.critical(f"Root directory {abs_root} does not exist! Check volume mount.")
+                return jsonify({"error": "Library directory not found (check docker mount)"}), 404
+            return jsonify({"error": "Directory not found"}), 404
+
+        parent = os.path.dirname(abs_req)
+        if not parent.startswith(abs_root):
+            parent = None
+
+        items = sorted(os.listdir(abs_req))
+        dirs = []
+        files = []
+
+        for item in items:
+            full_path = os.path.join(abs_req, item)
+            if os.path.isdir(full_path):
+                dirs.append({"name": item, "path": full_path})
+            else:
+                if item.lower().endswith(('.epub', '.pdf')):
+                    size = os.path.getsize(full_path)
+                    files.append({"name": item, "path": full_path, "size": _format_size(size)})
+
+        logger.info(f"Found {len(dirs)} dirs and {len(files)} books in {abs_req}")
+
+        return jsonify({
+            "current_path": abs_req,
+            "parent": parent,
+            "dirs": dirs,
+            "files": files
+        })
+    except Exception as e:
+        logger.exception("Error in browse_directory")
+        return jsonify({"error": str(e)}), 500
+
+
 
 
 
 def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_filename=None):
-    """Generator that yields NDJSON progress for EPUB→XTC conversion."""
     try:
         yield json.dumps({"type": "progress", "message": "Parsing EPUB...", "current": 0, "total": 100}) + "\n"
 
@@ -67,7 +121,7 @@ def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_file
                     final_filename = os.path.basename(final_path)
                 except Exception:
                     logger.exception("Failed to save XTC to library")
-                    final_filename = out_filename  # Fallback (though download will fail)
+                    final_filename = out_filename 
 
                 yield json.dumps({
                     "type": "done",
@@ -75,7 +129,6 @@ def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_file
                     "filename": final_filename,
                 }) + "\n"
 
-                # Cleanup session immediately
                 try:
                     shutil.rmtree(work_dir, ignore_errors=True)
                 except Exception:
@@ -88,11 +141,28 @@ def _stream_epub_to_xtc(epub_path, work_dir, settings, session_id, original_file
 
 @bp.route("/convert", methods=["POST"])
 def convert():
-    file = request.files.get("file")
-    if not file or not file.filename:
-        return jsonify({"error": "No file uploaded"}), 400
+    source_mode = request.form.get("source_mode", "upload")
+    file = None
+    original_filename = None
+    input_path = None
 
-    original_filename = file.filename
+    if source_mode == "hostitem":
+        host_path = request.form.get("host_path", "").strip()
+        if not host_path or not os.path.exists(host_path):
+             return jsonify({"error": "Invalid or missing host file path"}), 400
+        
+        abs_root = os.path.abspath(BROWSE_ROOT)
+        abs_path = os.path.abspath(host_path)
+        if not abs_path.startswith(abs_root):
+            return jsonify({"error": "Access denied"}), 403
+
+        original_filename = os.path.basename(host_path)
+    else:
+        file = request.files.get("file")
+        if not file or not file.filename:
+            return jsonify({"error": "No file uploaded"}), 400
+        original_filename = file.filename
+
     filename = original_filename.lower()
     output_format = request.form.get("output_format", "xtc").lower()
 
@@ -113,29 +183,29 @@ def convert():
         "paragraph_spacing": float(request.form.get("paragraph_spacing", "0.5")),
     }
 
-    # Session ID is critical for retrieval
     session_id = str(uuid.uuid4())
-    
-    # Store work files in session directory
-    # Facilitates cleanup
+
     session_dir = os.path.join(SESSIONS_DIR, session_id)
     os.makedirs(session_dir, exist_ok=True)
     work_dir = session_dir
 
-    logger.info(f"Convert request: {file.filename}, format={output_format}, session={session_id}")
+    logger.info(f"Convert request: {original_filename}, format={output_format}, session={session_id}, mode={source_mode}")
 
     try:
-        input_path = os.path.join(work_dir, file.filename)
-        file.save(input_path)
+        input_path = os.path.join(work_dir, original_filename)
+        
+        if source_mode == "hostitem":
+            host_path = request.form.get("host_path", "").strip()
+            shutil.copy2(host_path, input_path)
+        else:
+            file.save(input_path)
 
         if filename.endswith(".pdf"):
             if output_format == "epub":
-                # PDF → EPUB via Calibre
                 try:
                     epub_path = convert_pdf_to_epub(input_path, CALIBRE_IO_PATH)
                     epub_filename = os.path.splitext(original_filename)[0] + ".epub"
 
-                    # Copy to work_dir for serving
                     local_epub = os.path.join(work_dir, epub_filename)
                     shutil.copy2(epub_path, local_epub)
 
@@ -154,12 +224,10 @@ def convert():
                         "filename": final_filename,
                     })
                 except (TimeoutError, FileNotFoundError) as e:
-                    # Clean up on error
                     shutil.rmtree(work_dir, ignore_errors=True)
                     return jsonify({"error": str(e)}), 503
 
             else:
-                # PDF → XTC (Calibre first, then render)
                 def stream_pdf_to_xtc():
                     try:
                         yield json.dumps({"type": "progress", "message": "Converting PDF to EPUB via Calibre...", "current": 0, "total": 100}) + "\n"
@@ -178,7 +246,6 @@ def convert():
 
         elif filename.endswith(".epub"):
             if output_format == "xtc":
-                # EPUB → XTC
                 return Response(
                     _stream_epub_to_xtc(input_path, work_dir, settings, session_id, original_filename),
                     mimetype="application/x-ndjson",

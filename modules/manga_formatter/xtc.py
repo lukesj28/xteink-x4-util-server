@@ -1,15 +1,9 @@
-"""
-XTC/XTG binary format builder.
-Library for XTC/XTG binary format creation.
-"""
-
 import hashlib
 import struct
 from PIL import Image
 
 
 def _png_to_xtg_bytes(img: Image.Image, force_size=(480, 800), threshold=200):
-    """Convert a PIL image to XTG bytes (1-bit monochrome)."""
     if img.size != force_size:
         img = img.resize(force_size, Image.LANCZOS)
 
@@ -23,7 +17,7 @@ def _png_to_xtg_bytes(img: Image.Image, force_size=(480, 800), threshold=200):
         for x in range(w):
             bit = 1 if pixels[x, y] >= threshold else 0
             byte_index = y * row_bytes + (x // 8)
-            bit_index = 7 - (x % 8)  # MSB first
+            bit_index = 7 - (x % 8)
             if bit:
                 data[byte_index] |= 1 << bit_index
 
@@ -35,8 +29,8 @@ def _png_to_xtg_bytes(img: Image.Image, force_size=(480, 800), threshold=200):
         b"XTG\x00",
         w,
         h,
-        0,  # colorMode
-        0,  # compression
+        0,
+        0,
         data_size,
         md5digest,
     )
@@ -44,10 +38,6 @@ def _png_to_xtg_bytes(img: Image.Image, force_size=(480, 800), threshold=200):
 
 
 def build_xtc(pil_images, out_path, force_size=(480, 800)):
-    """
-    Build a multi-page XTC file from a list of PIL Images.
-    Used for main chapter files.
-    """
     xtg_blobs = [_png_to_xtg_bytes(img, force_size) for img in pil_images]
 
     page_count = len(xtg_blobs)
@@ -56,7 +46,6 @@ def build_xtc(pil_images, out_path, force_size=(480, 800)):
     index_offset = header_size
     data_offset = index_offset + page_count * index_entry_size
 
-    # Index table
     index_table = bytearray()
     rel_offset = data_offset
     for blob in xtg_blobs:
@@ -65,21 +54,20 @@ def build_xtc(pil_images, out_path, force_size=(480, 800)):
         index_table += entry
         rel_offset += len(blob)
 
-    # XTC header
     xtc_header = struct.pack(
         "<4sHHBBBBIQQQQ",
         b"XTC\x00",
-        1,           # version
-        page_count,  # pageCount
-        0,           # readDirection
-        0,           # hasMetadata
-        0,           # hasThumbnails
-        0,           # hasChapters
-        0,           # currentPage
-        0,           # metadataOffset
+        1,
+        page_count,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         index_offset,
         data_offset,
-        0,           # thumbOffset
+        0,
     )
 
     with open(out_path, "wb") as f:
@@ -90,8 +78,4 @@ def build_xtc(pil_images, out_path, force_size=(480, 800)):
 
 
 def build_single_page_xtc(pil_image, out_path, force_size=(480, 800)):
-    """
-    Build a single-page XTC file from one PIL Image.
-    Used for zoom split files.
-    """
     build_xtc([pil_image], out_path, force_size)

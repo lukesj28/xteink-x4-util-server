@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}The Arcanum — Book Converter{% endblock %}
+{% block title %}Xteink Tools — Book Converter{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('book_converter.static', filename='style.css') }}">
@@ -13,8 +13,8 @@
 <div class="converter-wrap">
 
     <div class="converter-header">
-        <h1 class="converter-title" data-text="THE ARCANUM">THE ARCANUM</h1>
-        <div class="converter-subtitle">Book Converter</div>
+        <h1 class="converter-title" data-text="Book Converter">Book Converter</h1>
+        <div class="converter-subtitle">Optimize your EPUB and PDF library for the X4 e-paper display.</div>
     </div>
 
     <form id="convertForm" enctype="multipart/form-data">
@@ -32,7 +32,15 @@
                             Controls
                         </div>
 
-                        <!-- Compact file upload -->
+                        <!-- Source Toggle -->
+                        <div class="source-toggle-wrap">
+                            <button type="button" class="source-toggle-btn" data-mode="upload">Upload File</button>
+                            <button type="button" class="source-toggle-btn active" data-mode="browse">Browse</button>
+                        </div>
+                        <input type="hidden" id="sourceMode" name="source_mode" value="hostitem">
+                        <input type="hidden" id="hostPath" name="host_path">
+
+                        <!-- Upload Zone (Upload Mode) -->
                         <div class="upload-row" id="dropZone">
                             <div class="upload-row-icon">📜</div>
                             <div class="upload-row-text">
@@ -40,6 +48,16 @@
                                 <span class="upload-row-hint">EPUB or PDF</span>
                             </div>
                             <input type="file" id="fileInput" name="file" accept=".epub,.pdf">
+                        </div>
+
+                        <!-- Browser Panel (Browse Mode) -->
+                        <div id="browserPanel" style="display:none;">
+                            <div class="browser-panel">
+                                <div class="browser-breadcrumb" id="breadcrumb"></div>
+                                <div class="browser-list" id="browserList">
+                                    <div class="browser-loading">Loading...</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="file-card" id="fileInfo">
@@ -125,11 +143,11 @@
                             <div class="form-group">
                                 <label class="label-fancy" for="text_align">Text Align</label>
                                 <div class="format-toggle align-toggle">
-                                    <button type="button" class="toggle-btn" data-align="left">Left</button>
-                                    <button type="button" class="toggle-btn active" data-align="justify">Justify</button>
+                                    <button type="button" class="toggle-btn active" data-align="left">Left</button>
+                                    <button type="button" class="toggle-btn" data-align="justify">Justify</button>
                                     <button type="button" class="toggle-btn" data-align="center">Center</button>
                                 </div>
-                                <input type="hidden" id="textAlign" name="text_align" value="justify">
+                                <input type="hidden" id="textAlign" name="text_align" value="left">
                             </div>
 
                             <!-- Toggle row -->
@@ -253,7 +271,21 @@
     const inputIndent = document.getElementById('paragraph_indent');
     const inputSpacing = document.getElementById('paragraph_spacing');
 
+    // Source inputs
+    const sourceModeInput = document.getElementById('sourceMode');
+    const hostPathInput = document.getElementById('hostPath');
+    const sourceToggleBtns = document.querySelectorAll('.source-toggle-btn');
+    const browserPanel = document.getElementById('browserPanel');
+    const breadcrumb = document.getElementById('breadcrumb');
+    const browserList = document.getElementById('browserList');
+
     let selectedFile = null;
+    let currentPath = '/books';
+
+    // Initial State: Browse Mode
+    dropZone.style.display = 'none';
+    browserPanel.style.display = 'flex';
+    // loadBrowser called at end
 
     // -- Interactive Ambient Light
     document.addEventListener('mousemove', (e) => {
@@ -403,7 +435,7 @@
     function handleFile(file) {
         const ext = file.name.split('.').pop().toLowerCase();
         if (ext !== 'epub' && ext !== 'pdf') {
-            showError('The spirits reject this form. Only EPUB or PDF are accepted.');
+            showError('Invalid format. Only EPUB or PDF are accepted.');
             return;
         }
 
@@ -431,11 +463,14 @@
     function clearFile() {
         selectedFile = null;
         fileInput.value = '';
+        hostPathInput.value = '';
         fileInfo.classList.remove('visible');
         submitBtn.disabled = true;
         epubFormatBtn.disabled = true;
         if (outputFormat.value === 'epub') {
-             document.querySelector('[data-format="xtc"]').click();
+             const xtcBtn = document.querySelector('[data-format="xtc"]');
+             if (xtcBtn) xtcBtn.click();
+             else outputFormat.value = 'xtc';
         }
     }
 
@@ -449,6 +484,146 @@
         return bytes.toFixed(1) + ' ' + units[i];
     }
 
+    // -- Source Switching
+    sourceToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            sourceToggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const mode = btn.dataset.mode;
+            
+            // Map 'browse' to 'hostitem' for backend
+            const backendMode = (mode === 'browse') ? 'hostitem' : 'upload';
+            sourceModeInput.value = backendMode;
+
+            if (mode === 'upload') {
+                dropZone.style.display = 'flex';
+                browserPanel.style.display = 'none';
+                // Reselect file if one was uploaded
+                if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+                else clearFile(); // Prepare for clean state
+            } else {
+                dropZone.style.display = 'none';
+                browserPanel.style.display = 'flex';
+                loadBrowser(currentPath);
+                // Clear file selection until user picks from browser
+                 if (!selectedFile || selectedFile instanceof File) {
+                    clearFile();
+                }
+            }
+        });
+    });
+
+    // -- Browser Logic
+    async function loadBrowser(path) {
+        currentPath = path;
+        browserList.innerHTML = '<div class="browser-loading">Loading...</div>';
+
+        try {
+            const resp = await fetch(`/book-converter/browse?path=${encodeURIComponent(path)}`);
+            const data = await resp.json();
+
+            if (!resp.ok) throw new Error(data.error);
+
+            renderBreadcrumb(data.current_path);
+            renderList(data);
+
+        } catch (err) {
+             browserList.innerHTML = `<div class="browser-empty">${err.message}</div>`;
+        }
+    }
+
+    function renderBreadcrumb(fullPath) {
+        breadcrumb.innerHTML = '';
+        const base = '/books';
+        const relative = fullPath.replace(base, '') || '';
+        const parts = relative.split('/').filter(Boolean);
+
+        const root = document.createElement('span');
+        root.className = 'crumb';
+        root.textContent = 'Books';
+        root.addEventListener('click', () => loadBrowser(base));
+        breadcrumb.appendChild(root);
+
+        let accumulated = base;
+        for (const part of parts) {
+            accumulated += '/' + part;
+            const sep = document.createElement('span');
+            sep.className = 'crumb-sep';
+            sep.textContent = '/';
+            breadcrumb.appendChild(sep);
+
+            const crumb = document.createElement('span');
+            crumb.className = 'crumb';
+            crumb.textContent = part;
+            const target = accumulated;
+            crumb.addEventListener('click', () => loadBrowser(target));
+            breadcrumb.appendChild(crumb);
+        }
+    }
+
+    function renderList(data) {
+        browserList.innerHTML = '';
+
+        if (data.parent) {
+            const item = document.createElement('div');
+            item.className = 'browser-item browser-dir';
+            item.innerHTML = '<span>..</span>';
+            item.addEventListener('click', () => loadBrowser(data.parent));
+            browserList.appendChild(item);
+        }
+
+        if (data.dirs.length === 0 && data.files.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'browser-empty';
+            empty.textContent = 'This shelf is empty.';
+            browserList.appendChild(empty);
+            return;
+        }
+
+        data.dirs.forEach(dir => {
+            const item = document.createElement('div');
+            item.className = 'browser-item browser-dir';
+            item.innerHTML = `<span>${dir.name}</span>`;
+            item.addEventListener('click', () => loadBrowser(dir.path));
+            browserList.appendChild(item);
+        });
+
+        data.files.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'browser-item browser-file';
+            item.innerHTML = `<span>${file.name}</span> <span style="font-size:0.7em; color:var(--ink-light)">${file.size}</span>`;
+            item.addEventListener('click', () => selectBrowserFile(file));
+            browserList.appendChild(item);
+        });
+    }
+
+    function selectBrowserFile(fileData) {
+        selectedFile = { name: fileData.name, size: fileData.size, path: fileData.path, type: 'host' };
+        hostPathInput.value = fileData.path;
+
+        fileName.textContent = fileData.name;
+        fileSize.textContent = fileData.size; // Already formatted
+        const ext = fileData.name.split('.').pop().toLowerCase();
+        fileIcon.textContent = ext.toUpperCase();
+        fileInfo.classList.add('visible');
+
+        if (ext === 'pdf') {
+            epubFormatBtn.disabled = false;
+        } else {
+            epubFormatBtn.disabled = true;
+            if (outputFormat.value === 'epub') {
+                 // Trigger click to switch
+                 const xtcBtn = document.querySelector('[data-format="xtc"]');
+                 if (xtcBtn) xtcBtn.click();
+                 else outputFormat.value = 'xtc'; 
+            }
+        }
+        submitBtn.disabled = false;
+        hideError();
+        successBox.classList.remove('visible');
+    }
+
+
     // -- Form Submit
     form.addEventListener('submit', async e => {
         e.preventDefault();
@@ -459,7 +634,7 @@
         submitBtn.disabled = true;
         progressSection.classList.add('visible');
         progressFill.style.width = '0%';
-        statusText.textContent = 'Summoning the energies...';
+        statusText.textContent = 'Converting...';
 
         const formData = new FormData(form);
 
@@ -479,7 +654,7 @@
 
             if (!resp.ok) {
                 const err = await resp.json();
-                throw new Error(err.error || 'The spell misfired.');
+                throw new Error(err.error || 'Conversion failed.');
             }
 
             const contentType = resp.headers.get('content-type') || '';
@@ -523,7 +698,7 @@
             if (event.message) statusText.textContent = event.message;
         } else if (event.type === 'done') {
             progressFill.style.width = '100%';
-            statusText.textContent = 'Transmutation Complete!';
+            statusText.textContent = 'Conversion Complete!';
             successBox.classList.add('visible');
 
             if (event.download_url) {
@@ -553,6 +728,9 @@
         errorBox.classList.remove('visible');
         errorBox.textContent = '';
     }
+
+    // Initialize browser
+    loadBrowser(currentPath);
 })();
 </script>
 {% endblock %}

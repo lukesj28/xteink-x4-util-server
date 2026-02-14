@@ -1,9 +1,3 @@
-"""
-Book Converter — Core engine.
-Parses EPUB files, renders pages via PyMuPDF, and builds XTC binary files.
-Supports PDF→EPUB conversion via a shared Calibre volume.
-"""
-
 import os
 import re
 import shutil
@@ -57,11 +51,6 @@ def _merge_settings(raw):
                 else:
                     s[key] = float(raw[key])
     return s
-
-
-# ------------------------------------------------------------------
-# EPUB Parsing
-# ------------------------------------------------------------------
 
 def _extract_images_to_base64(book):
     image_map = {}
@@ -128,15 +117,8 @@ def _get_toc_mapping(book):
 
 
 def parse_epub(epub_path):
-    """
-    Parse an EPUB file and return structured data.
-
-    Returns dict: {title, author, lang, chapters: [{title, body_html, has_image}],
-                   images: {basename: data_uri}, css}
-    """
     book = epub.read_epub(epub_path)
 
-    # Metadata
     titles = book.get_metadata("DC", "title")
     title = titles[0][0] if titles else "Unknown Title"
     authors = book.get_metadata("DC", "creator")
@@ -196,18 +178,7 @@ def parse_epub(epub_path):
         "css": css,
     }
 
-
-# ------------------------------------------------------------------
-# Page Rendering (PyMuPDF pipeline)
-# ------------------------------------------------------------------
-
 def render_book(parsed, settings=None):
-    """
-    Render a parsed EPUB to a list of processed PIL images.
-
-    Yields progress dicts during rendering, then yields a final result dict:
-        {"type": "result", "pages": [...], "metadata": {...}, "chapters": [...]}
-    """
     s = _merge_settings(settings)
     w = s["target_width"]
     h = s["target_height"]
@@ -262,7 +233,7 @@ def render_book(parsed, settings=None):
 
     total_chapters = len(chapters_data)
     all_pages = []
-    chapter_records = []  # (title, start_page, end_page)
+    chapter_records = []
     render_dir = tempfile.mkdtemp(prefix="book_render_")
 
     try:
@@ -276,7 +247,6 @@ def render_book(parsed, settings=None):
 
             body_html = chapter["body_html"]
 
-            # Replace image sources with base64 data URIs
             soup = BeautifulSoup(body_html, "html.parser")
             for img_tag in soup.find_all("img"):
                 src = img_tag.get("src", "")
@@ -310,11 +280,9 @@ def render_book(parsed, settings=None):
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 img = img.convert("L")
 
-                # Apply contrast
                 if contrast != 1.0:
                     img = ImageEnhance.Contrast(img).enhance(contrast)
 
-                # Apply dithering
                 if dithering:
                     img = img.convert("1", dither=Image.Dither.FLOYDSTEINBERG).convert("L")
 
@@ -339,26 +307,20 @@ def render_book(parsed, settings=None):
         "chapters": chapter_records,
     }
 
-
-# ------------------------------------------------------------------
-# XTC Building (book format with metadata + chapters)
-# ------------------------------------------------------------------
-
 def _pack_metadata(title, author, lang, chapter_count):
-    """Pack metadata into a 256-byte fixed-size block."""
+
     blob = bytearray(256)
     struct.pack_into("<128s", blob, 0x00, title.encode("utf-8")[:127])
     struct.pack_into("<64s", blob, 0x80, author.encode("utf-8")[:63])
     struct.pack_into("<32s", blob, 0xC0, b"X4Utils")
     struct.pack_into("<16s", blob, 0xE0, lang.encode("utf-8")[:15])
     struct.pack_into("<I", blob, 0xF0, int(time.time()))
-    struct.pack_into("<H", blob, 0xF4, 0)  # cover page
+    struct.pack_into("<H", blob, 0xF4, 0)
     struct.pack_into("<H", blob, 0xF6, chapter_count)
     return bytes(blob)
 
 
 def _pack_chapter(name, start_pg, end_pg):
-    """Pack a single chapter into a 96-byte fixed-size block."""
     blob = bytearray(96)
     struct.pack_into("<80s", blob, 0x00, name.encode("utf-8")[:79])
     struct.pack_into("<H", blob, 0x50, start_pg)
@@ -367,7 +329,6 @@ def _pack_chapter(name, start_pg, end_pg):
 
 
 def _image_to_xtg_blob(img, w, h):
-    """Convert a grayscale PIL image to an XTG page blob (header + 1-bit bitmap)."""
     if img.size != (w, h):
         img = img.resize((w, h), Image.LANCZOS)
 
@@ -380,14 +341,6 @@ def _image_to_xtg_blob(img, w, h):
 
 
 def build_book_xtc(pages, out_path, metadata, chapters, size):
-    """
-    Build a book XTC file with metadata and chapter records.
-
-    pages: list of grayscale PIL images
-    metadata: dict with title, author, lang
-    chapters: list of (title, start_page, end_page) tuples
-    size: (width, height) tuple
-    """
     w, h = size
     total_pages = len(pages)
     num_chaps = len(chapters)
@@ -397,17 +350,14 @@ def build_book_xtc(pages, out_path, metadata, chapters, size):
     index_off = chapter_off + (num_chaps * 96)
     data_off = index_off + (total_pages * 16)
 
-    # Metadata block
     metadata_block = _pack_metadata(
         metadata["title"], metadata["author"], metadata["lang"], num_chaps
     )
 
-    # Chapter blocks
     chapter_block = bytearray()
     for title, start_pg, end_pg in chapters:
         chapter_block.extend(_pack_chapter(title, start_pg, end_pg))
 
-    # Process pages → XTG blobs
     blob_data = bytearray()
     index_table = bytearray()
 
@@ -418,21 +368,20 @@ def build_book_xtc(pages, out_path, metadata, chapters, size):
         )
         blob_data.extend(page_blob)
 
-    # XTC header (56 bytes)
     header = struct.pack(
         "<IHHBBBBIQQQQQ",
-        0x00435458,   # "XTC\0"
-        0x0100,       # version
-        total_pages,  # page count
-        0,            # readDirection
-        1,            # hasMetadata
-        0,            # hasThumbnails
-        1,            # hasChapters
-        1,            # currentPage
+        0x00435458,
+        0x0100,
+        total_pages,
+        0,
+        1,
+        0,
+        1,
+        1,
         metadata_off,
         index_off,
         data_off,
-        0,            # thumbOffset
+        0,
         chapter_off,
     )
 
@@ -445,20 +394,7 @@ def build_book_xtc(pages, out_path, metadata, chapters, size):
 
     logger.info(f"XTC written: {out_path} ({total_pages} pages, {num_chaps} chapters)")
 
-
-# ------------------------------------------------------------------
-# PDF → EPUB via shared Calibre volume
-# ------------------------------------------------------------------
-
 def convert_pdf_to_epub(pdf_path, calibre_io_path, poll_interval=2, timeout=120):
-    """
-    Convert a PDF to EPUB by placing it in the Calibre shared volume.
-
-    Copies PDF to {calibre_io_path}/input/, then polls {calibre_io_path}/output/
-    for the resulting .epub file.
-
-    Returns the path to the converted EPUB, or raises an error.
-    """
     input_dir = os.path.join(calibre_io_path, "input")
     output_dir = os.path.join(calibre_io_path, "output")
     os.makedirs(input_dir, exist_ok=True)
@@ -476,7 +412,6 @@ def convert_pdf_to_epub(pdf_path, calibre_io_path, poll_interval=2, timeout=120)
     while elapsed < timeout:
         if os.path.exists(epub_out) and os.path.getsize(epub_out) > 0:
             logger.info(f"Calibre conversion complete: {epub_out}")
-            # Clean up input
             try:
                 os.remove(dest)
             except OSError:
@@ -485,7 +420,6 @@ def convert_pdf_to_epub(pdf_path, calibre_io_path, poll_interval=2, timeout=120)
         time.sleep(poll_interval)
         elapsed += poll_interval
 
-    # Clean up input on timeout
     try:
         os.remove(dest)
     except OSError:
