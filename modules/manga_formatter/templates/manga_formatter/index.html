@@ -276,15 +276,36 @@
                 for (const file of data.files) {
                     const el = document.createElement('div');
                     el.className = 'browser-item browser-file';
-                    el.innerHTML = `<span>${file.name}</span><span class="file-size">${file.size}</span>`;
+                    
+                    if (file.name.toLowerCase().endsWith('.cbz')) {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'file-checkbox';
+                        checkbox.value = file.name;
+                        checkbox.style.marginRight = '10px';
+                        checkbox.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            updateSelectButtonState();
+                        });
+                        el.appendChild(checkbox);
+                    }
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = file.name;
+                    el.appendChild(nameSpan);
+                    
+                    const sizeSpan = document.createElement('span');
+                    sizeSpan.className = 'file-size';
+                    sizeSpan.textContent = file.size;
+                    
+                    el.appendChild(sizeSpan);
                     browserList.appendChild(el);
                 }
 
                 // Show select button if there are CBZ files
-                const hasCbz = data.files.some(f => f.name.toLowerCase().endsWith('.cbz'));
-                const cbzCount = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz')).length;
-                if (hasCbz) {
-                    selectDirBtn.textContent = `Select (${cbzCount} CBZ file${cbzCount !== 1 ? 's' : ''})`;
+                const cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
+                if (cbzFiles.length > 0) {
+                    selectDirBtn.textContent = `Select All (${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''})`;
                     browserActions.style.display = '';
                 } else if (data.dirs.length > 0) {
                     browserActions.style.display = 'none';
@@ -296,6 +317,18 @@
             } catch (err) {
                 browserList.innerHTML = `<p class="browser-empty">${err.message}</p>`;
             }
+        }
+
+        function updateSelectButtonState() {
+             const checkboxes = document.querySelectorAll('.file-checkbox');
+             const selectedCount = Array.from(checkboxes).filter(c => c.checked).length;
+             const totalCbz = checkboxes.length;
+
+             if (selectedCount > 0) {
+                 selectDirBtn.textContent = `Select (${selectedCount} File${selectedCount !== 1 ? 's' : ''})`;
+             } else {
+                 selectDirBtn.textContent = `Select All (${totalCbz} CBZ file${totalCbz !== 1 ? 's' : ''})`;
+             }
         }
 
         function buildBreadcrumb(fullPath) {
@@ -334,14 +367,21 @@
         // Select directory
         selectDirBtn.addEventListener('click', async () => {
             selectedHostPath = currentBrowsePath;
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            const selectedFiles = Array.from(checkboxes).map(c => c.value);
 
             try {
                 const resp = await fetch(`/manga-formatter/browse?path=${encodeURIComponent(selectedHostPath)}`);
                 const data = await resp.json();
 
-                const cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
+                let cbzFiles = data.files.filter(f => f.name.toLowerCase().endsWith('.cbz'));
+                
+                // If specific files were selected, filter to just those
+                if (selectedFiles.length > 0) {
+                     cbzFiles = cbzFiles.filter(f => selectedFiles.includes(f.name));
+                }
 
-                selectedDirLabel.textContent = `${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} CBZ file${cbzFiles.length !== 1 ? 's' : ''}`;
+                selectedDirLabel.textContent = `${selectedHostPath.replace('/mangas', 'mangas')} — ${cbzFiles.length} File${cbzFiles.length !== 1 ? 's' : ''}`;
                 cbzPreviewList.innerHTML = '';
                 for (const f of cbzFiles) {
                     const div = document.createElement('div');
@@ -349,6 +389,9 @@
                     div.innerHTML = `<span class="file-name">${f.name}</span><span class="file-size">${f.size}</span>`;
                     cbzPreviewList.appendChild(div);
                 }
+                
+                // Store selected files for submission
+                form.dataset.selectedFiles = JSON.stringify(selectedFiles);
 
                 document.querySelector('.browser-panel').style.display = 'none';
                 selectedDirInfo.style.display = '';
@@ -440,6 +483,10 @@
                 }
             } else {
                 fd.append('host_path', selectedHostPath);
+                const selectedFiles = JSON.parse(form.dataset.selectedFiles || '[]');
+                if (selectedFiles.length > 0) {
+                    fd.append('selected_files', JSON.stringify(selectedFiles));
+                }
             }
 
             setLoading(true);
@@ -561,9 +608,27 @@
                             <label>Chapter #</label>
                             <input type="number" class="review-chapter-input" data-filename="${item.filename}" min="1" placeholder="e.g. 5">
                         </div>
+                        <div class="skip-wrap" style="margin-top: 5px;">
+                            <label style="font-size: 0.9em; cursor: pointer;">
+                                <input type="checkbox" class="skip-checkbox" data-filename="${item.filename}"> Skip
+                            </label>
+                        </div>
                     </div>
                 `;
                 reviewGrid.appendChild(card);
+                
+                // Add event listener for skip check
+                const skipBox = card.querySelector('.skip-checkbox');
+                const numInput = card.querySelector('.review-chapter-input');
+                skipBox.addEventListener('change', () => {
+                    if (skipBox.checked) {
+                        numInput.disabled = true;
+                        numInput.value = '';
+                        numInput.classList.remove('input-error');
+                    } else {
+                        numInput.disabled = false;
+                    }
+                });
             }
             reviewPanel.dataset.sessionId = data.session_id;
         }
@@ -576,10 +641,19 @@
             let valid = true;
 
             for (const inp of inputs) {
+                const skipBox = document.querySelector(`.skip-checkbox[data-filename="${inp.dataset.filename}"]`);
+                if (skipBox && skipBox.checked) continue;
+
                 const val = inp.value.trim();
                 if (!val) { inp.classList.add('input-error'); valid = false; }
                 else { inp.classList.remove('input-error'); assignments[inp.dataset.filename] = parseInt(val, 10); }
             }
+            
+            // Collect skipped files
+            const skippedFiles = [];
+            document.querySelectorAll('.skip-checkbox:checked').forEach(cb => {
+                skippedFiles.push(cb.dataset.filename);
+            });
 
             if (!valid) { showError('Please assign a chapter number to all files.'); return; }
 
@@ -599,7 +673,7 @@
                 const resp = await fetch('/manga-formatter/convert/continue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: sessionId, assignments }),
+                    body: JSON.stringify({ session_id: sessionId, assignments, skipped_files: skippedFiles }),
                 });
 
                 const contentType = resp.headers.get('content-type') || '';

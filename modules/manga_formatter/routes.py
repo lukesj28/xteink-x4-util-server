@@ -175,12 +175,23 @@ def convert():
         cbz_paths = []
         if source_mode == "hostdir":
             host_path = request.form.get("host_path", "").strip()
+            selected_files_json = request.form.get("selected_files")
+            
             if not host_path or not os.path.isdir(host_path):
                 logger.error(f"Invalid host path: {host_path}")
                 return jsonify({"error": f"Invalid host directory: {host_path}"}), 400
+                
+            selected_files = None
+            if selected_files_json:
+                try:
+                    selected_files = set(json.loads(selected_files_json))
+                except json.JSONDecodeError:
+                    logger.warning("Failed to decode selected_files JSON")
+
             for f in sorted(os.listdir(host_path)):
                 if f.lower().endswith(".cbz"):
-                    cbz_paths.append(os.path.join(host_path, f))
+                    if selected_files is None or f in selected_files:
+                        cbz_paths.append(os.path.join(host_path, f))
         else:
             files = request.files.getlist("cbz_files")
             if not files or all(f.filename == "" for f in files):
@@ -248,6 +259,7 @@ def convert_continue():
 
     session_id = data.get("session_id")
     assignments = data.get("assignments", {})
+    skipped_files = set(data.get("skipped_files", []))
     session = _sessions.get(session_id)
     if not session:
         return jsonify({"error": "Session not found or expired"}), 404
@@ -261,6 +273,8 @@ def convert_continue():
 
         final_map = recognized.copy()
         for filename, ch_num_str in assignments.items():
+            if filename in skipped_files:
+                continue
             ch_num = int(ch_num_str)
             cbz_path = session["unrecognized"].get(filename)
             if cbz_path:

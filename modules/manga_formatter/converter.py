@@ -96,6 +96,13 @@ def _apply_contrast(img, level):
 
 
 def _to_grayscale(img):
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
+        background = Image.new("RGBA", img.size, (255, 255, 255))
+        composite = Image.alpha_composite(background, img)
+        return composite.convert("L")
+        
     if img.mode == "P":
         img = img.convert("RGB")
     if img.mode != "L":
@@ -241,14 +248,23 @@ def _extract_images(cbz_path):
         exts = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp")
         img_files = sorted(
             f for f in names
-            if f.lower().endswith(exts) and not f.lower().startswith("__macos")
+            if f.lower().endswith(exts) 
+            and "__macosx" not in f.lower() 
+            and not os.path.basename(f).startswith(".")
         )
         for f in img_files:
-            data = zf.read(f)
-            img = Image.open(BytesIO(data))
-            if img.mode == "P":
-                img = img.convert("RGB")
-            images.append(img)
+            try:
+                data = zf.read(f)
+                img = Image.open(BytesIO(data))
+                img.load()
+                
+                if img.mode == "P":
+                    img = img.convert("RGB")
+                    
+                images.append(img)
+            except Exception as e:
+                print(f"Warning: Failed to load image {f} from {cbz_path}: {e}")
+                continue
     return images
 
 
