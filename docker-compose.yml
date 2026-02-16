@@ -4,14 +4,11 @@ services:
     ports:
       - "5888:5000"
     environment:
-      - PYTHONUNBUFFERED=1
-      - CALIBRE_IO_PATH=/calibre-io
       - READARR_URL=
       - SUWAYOMI_URL=
     volumes:
-      - ./data/library:/library
-      - ./data/tmp:/tmp
       - ./data/calibre-io:/calibre-io
+      - ./data/library:/library
       - ./data/mangas:/mangas:ro
       - ./data/books:/books:ro
       - ./data/firmware:/firmware:ro

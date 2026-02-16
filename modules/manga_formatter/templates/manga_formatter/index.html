@@ -87,6 +87,20 @@
                     </div>
 
                     <div class="setting">
+                        <label for="long_strip">Long Strip Format</label>
+                        <div class="toggle-wrap">
+                            <input type="checkbox" id="long_strip" name="long_strip">
+                            <label for="long_strip" class="toggle"></label>
+                            <span class="toggle-label" id="longStripLabel">OFF</span>
+                        </div>
+                    </div>
+
+                    <div class="setting" id="overlapSetting" style="display:none;">
+                        <label for="overlap">Strip Overlap <span id="overlapVal" class="badge">33%</span></label>
+                        <input type="range" id="overlap" name="overlap" min="0" max="50" value="33">
+                    </div>
+
+                    <div class="setting">
                         <label for="contrast">Contrast <span id="contrastVal" class="badge">4</span></label>
                         <input type="range" id="contrast" name="contrast" min="0" max="8" value="4">
                     </div>
@@ -161,6 +175,11 @@
         const contrastVal = document.getElementById('contrastVal');
         const ditherToggle = document.getElementById('dithering');
         const ditherLabel = document.getElementById('ditherLabel');
+        const longStripToggle = document.getElementById('long_strip');
+        const longStripLabel = document.getElementById('longStripLabel');
+        const overlapSetting = document.getElementById('overlapSetting');
+        const overlapSlider = document.getElementById('overlap');
+        const overlapVal = document.getElementById('overlapVal');
         const uploadSection = document.getElementById('uploadSection');
         const browseSection = document.getElementById('browseSection');
         const breadcrumb = document.getElementById('breadcrumb');
@@ -383,7 +402,12 @@
 
         // --- Settings ---
         contrastSlider.addEventListener('input', () => { contrastVal.textContent = contrastSlider.value; });
+        overlapSlider.addEventListener('input', () => { overlapVal.textContent = overlapSlider.value + '%'; });
         ditherToggle.addEventListener('change', () => { ditherLabel.textContent = ditherToggle.checked ? 'ON' : 'OFF'; });
+        longStripToggle.addEventListener('change', () => { 
+            longStripLabel.textContent = longStripToggle.checked ? 'ON' : 'OFF'; 
+            overlapSetting.style.display = longStripToggle.checked ? 'block' : 'none';
+        });
 
         // --- Form Submit ---
         form.addEventListener('submit', async (e) => {
@@ -404,6 +428,8 @@
             fd.append('title', title);
             fd.append('source_mode', sourceMode === 'browse' ? 'hostdir' : 'upload');
             fd.append('dithering', ditherToggle.checked ? 'true' : 'false');
+            fd.append('long_strip', longStripToggle.checked ? 'true' : 'false');
+            fd.append('overlap', overlapSlider.value);
             fd.append('contrast', contrastSlider.value);
             fd.append('target_width', document.getElementById('target_width').value);
             fd.append('target_height', document.getElementById('target_height').value);

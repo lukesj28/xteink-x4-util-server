@@ -14,6 +14,8 @@ DEFAULT_SETTINGS = {
     "contrast": 4,
     "target_width": 480,
     "target_height": 800,
+    "long_strip": False,
+    "overlap": 33,
 }
 
 
@@ -22,6 +24,10 @@ def _parse_settings(raw):
     if raw:
         if "dithering" in raw:
             s["dithering"] = bool(raw["dithering"])
+        if "long_strip" in raw:
+            s["long_strip"] = bool(raw["long_strip"])
+        if "overlap" in raw:
+            s["overlap"] = max(0, min(90, int(raw["overlap"])))
         if "contrast" in raw:
             s["contrast"] = max(0, min(8, int(raw["contrast"])))
         if "target_width" in raw:
@@ -155,6 +161,79 @@ def _process_zoom_page(img, settings):
 
     return segments
 
+def _process_long_strip(images, settings):
+    processed_imgs = []
+    target_w = settings["target_width"]
+    target_h = settings["target_height"]
+    overlap_pct = settings.get("overlap", 33) / 100.0
+    
+    overlap_px = int(target_h * overlap_pct)
+    step = target_h - overlap_px
+    
+    if step <= 0:
+        step = 10 
+        overlap_px = target_h - 10
+    
+    total_virtual_height = 0
+    img_metadata = []
+    
+    for img in images:
+        img = _to_grayscale(img)
+        img = _apply_contrast(img, settings["contrast"])
+        
+        w, h = img.size
+        if w == 0: continue
+            
+        scale = target_w / w
+        new_h = int(h * scale)
+        
+        img = img.resize((target_w, new_h), Image.LANCZOS)
+        
+        start_y = total_virtual_height
+        end_y = start_y + new_h
+        img_metadata.append({
+            "img": img,
+            "start_y": start_y,
+            "end_y": end_y,
+            "h": new_h
+        })
+        total_virtual_height += new_h
+        
+    if not img_metadata:
+        return []
+
+    segments = []
+    current_y = 0
+    
+    while current_y < total_virtual_height:
+        win_start = current_y
+        win_end = current_y + target_h
+        
+        canvas = Image.new("L", (target_w, target_h), 255) # White bg
+        
+        for meta in img_metadata:
+            if meta["end_y"] > win_start and meta["start_y"] < win_end:
+                paste_y = meta["start_y"] - win_start
+                
+                src_crop_top = 0
+                if paste_y < 0:
+                    src_crop_top = -paste_y
+                    paste_y = 0
+                                                
+                src_img = meta["img"]
+                
+                if src_crop_top > 0:
+                   src_img = src_img.crop((0, src_crop_top, target_w, meta["h"]))
+                
+                canvas.paste(src_img, (0, int(paste_y)))
+
+        segments.append(canvas)
+        
+        current_y += step
+        
+        pass
+    return segments
+
 def _extract_images(cbz_path):
     images = []
     with zipfile.ZipFile(cbz_path, "r") as zf:
@@ -196,13 +275,35 @@ def convert_chapter(cbz_path, ch_num, root, settings):
 
     images = _extract_images(cbz_path)
 
-    main_pages = [_process_main_page(img, s) for img in images]
-    build_xtc(main_pages, str(ch_dir / f"main_{ch_label}.xtc"), force_size)
 
-    for page_idx, img in enumerate(images, start=1):
-        splits = _process_zoom_page(img, s)
-        fname = f"{ch_label}_{page_idx}.xtc"
-        build_xtc(splits, str(zoom_dir / fname), force_size)
+
+    if s["long_strip"]:
+        segments = _process_long_strip(images, s)
+        
+        main_segments_ready = []
+        for seg in segments:
+            if s["dithering"]:
+                seg = seg.convert("1", dither=Image.Dither.FLOYDSTEINBERG).convert("L")
+            main_segments_ready.append(seg)
+            
+        build_xtc(main_segments_ready, str(ch_dir / f"main_{ch_label}.xtc"), force_size)
+        
+        zoom_settings = dict(s)
+        zoom_settings["contrast"] = 0
+        
+        for page_idx, seg_img in enumerate(segments, start=1):
+            splits = _process_zoom_page(seg_img, zoom_settings)
+            fname = f"{ch_label}_{page_idx}.xtc"
+            build_xtc(splits, str(zoom_dir / fname), force_size)
+
+    else:
+        main_pages = [_process_main_page(img, s) for img in images]
+        build_xtc(main_pages, str(ch_dir / f"main_{ch_label}.xtc"), force_size)
+
+        for page_idx, img in enumerate(images, start=1):
+            splits = _process_zoom_page(img, s)
+            fname = f"{ch_label}_{page_idx}.xtc"
+            build_xtc(splits, str(zoom_dir / fname), force_size)
 
 
 def convert_chapters(chapter_map, output_dir, manga_title, settings=None):

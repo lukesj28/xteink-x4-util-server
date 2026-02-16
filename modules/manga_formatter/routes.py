@@ -158,6 +158,8 @@ def convert():
 
     settings = {
         "dithering": request.form.get("dithering", "true").lower() == "true",
+        "long_strip": request.form.get("long_strip", "false").lower() == "true",
+        "overlap": int(request.form.get("overlap", "33")),
         "contrast": int(request.form.get("contrast", "4")),
         "target_width": int(request.form.get("target_width", "480")),
         "target_height": int(request.form.get("target_height", "800")),
